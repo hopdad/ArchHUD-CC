@@ -229,11 +229,11 @@ function ControlClass(Nav, c, u, s, atlas, vBooster, hover, antigrav, shield, db
         elseif action == "option1" then
             toggleView = false
             if AltIsOn and holdingShift then 
-                local onboard = ""
+                local parts = {}
                 for i=1, #passengers do
-                    onboard = onboard.."| Name: "..s.getPlayerName(passengers[i]).." Mass: "..round(C.getBoardedPlayerMass(passengers[i])/1000,1).."t "
+                    parts[#parts+1] = "| Name: "..s.getPlayerName(passengers[i]).." Mass: "..round(C.getBoardedPlayerMass(passengers[i])/1000,1).."t "
                 end
-                s.print("Onboard: "..onboard)
+                s.print("Onboard: "..table.concat(parts))
                 return
             end
             ATLAS.adjustAutopilotTargetIndex()
@@ -251,11 +251,11 @@ function ControlClass(Nav, c, u, s, atlas, vBooster, hover, antigrav, shield, db
         elseif action == "option3" then
             toggleView = false
             if AltIsOn and holdingShift then 
-                local onboard = ""
+                local parts = {}
                 for i=1, #ships do
-                    onboard = onboard.."| ID: "..ships[i].." Mass: "..round(C.getDockedConstructMass(ships[i])/1000,1).."t "
+                    parts[#parts+1] = "| ID: "..ships[i].." Mass: "..round(C.getDockedConstructMass(ships[i])/1000,1).."t "
                 end
-                s.print("Docked Ships: "..onboard)
+                s.print("Docked Ships: "..table.concat(parts))
                 return
             end
             if hideHudOnToggleWidgets then
@@ -766,27 +766,27 @@ function ControlClass(Nav, c, u, s, atlas, vBooster, hover, antigrav, shield, db
                 msg ("No transponder found.")
             end
         elseif command == "/createPrivate" then
-            local saveStr = "privatelocations = {\n"
+            local saveParts = {"privatelocations = {\n"}
             local msgStr = ""
             if #privatelocations > 0 then
                 for k,v in pairs(privatelocations) do
-                    saveStr = saveStr.. "{position = {x = "..v.position.x..", y = "..v.position.y..", z = "..v.position.z.."},\n "..
+                    saveParts[#saveParts+1] = "{position = {x = "..v.position.x..", y = "..v.position.y..", z = "..v.position.z.."},\n "..
                                         "name = '"..v.name.."',\n planetname = '"..v.planetname.."',\n gravity = "..v.gravity..",\n"
-                    if v.heading then saveStr = saveStr.."heading = {x = "..v.heading.x..", y = "..v.heading.y..", z = "..v.heading.z.."},\n" end
-                    if v.safe then saveStr = saveStr.."safe = true},\n" else saveStr = saveStr.."safe = false},\n" end
+                    if v.heading then saveParts[#saveParts+1] = "heading = {x = "..v.heading.x..", y = "..v.heading.y..", z = "..v.heading.z.."},\n" end
+                    if v.safe then saveParts[#saveParts+1] = "safe = true},\n" else saveParts[#saveParts+1] = "safe = false},\n" end
                 end
             end
             msgStr = #privatelocations.."-Private "
             if argument == "all" then
                 for k,v in pairs(SavedLocations) do
-                    saveStr = saveStr.. "{position = {x = "..v.position.x..", y = "..v.position.y..", z = "..v.position.z.."},\n "..
+                    saveParts[#saveParts+1] = "{position = {x = "..v.position.x..", y = "..v.position.y..", z = "..v.position.z.."},\n "..
                                         "name = '*"..v.name.."',\n planetname = '"..v.planetname.."',\n gravity = "..v.gravity..",\n"
-                    if v.heading then saveStr = saveStr.."heading = {x = "..v.heading.x..", y = "..v.heading.y..", z = "..v.heading.z.."},\n" end
-                    if v.safe then saveStr = saveStr.." safe = true},\n" else saveStr = saveStr.."safe = false},\n" end
+                    if v.heading then saveParts[#saveParts+1] = "heading = {x = "..v.heading.x..", y = "..v.heading.y..", z = "..v.heading.z.."},\n" end
+                    if v.safe then saveParts[#saveParts+1] = " safe = true},\n" else saveParts[#saveParts+1] = "safe = false},\n" end
                 end
                 msgStr = msgStr..#SavedLocations.."-Public "
             end
-            saveStr = saveStr.."}\n return privatelocations"
+            local saveStr = table.concat(saveParts).."}\n return privatelocations"
             if screenHud_1 then screenHud_1.setHTML(saveStr) end
             msg (msgStr.."locations dumped to screen if present.\n Cut and paste to privatelocations.lua to use")
             msgTimer = 7

@@ -226,8 +226,7 @@ function programClass(Nav, c, u, atlas, vBooster, hover, telemeter_1, antigrav, 
                     LastMaxBrakeInAtmo = 0
                 end
                 LastStartTime = time
-                userControlScheme = string.lower(userControlScheme)
-                if string.find("keyboard virtual joystick mouse",  userControlScheme) == nil then 
+                if string.find("keyboard virtual joystick mouse",  userControlScheme) == nil then
                     msg ("Invalid User Control Scheme selected.\nChange userControlScheme in Lua Parameters to keyboard, mouse, or virtual joystick\nOr use shift and button in screen")
                     msgTimer = 7
                 end
@@ -289,14 +288,14 @@ function programClass(Nav, c, u, atlas, vBooster, hover, telemeter_1, antigrav, 
                 local spaceUnitMassByLitter = 6
                 local rocketUnitMassByLitter = 0.8
                 for k in pairs(elementsID) do --Look for space engines, landing gear, fuel tanks if not slotted and c size
-                    local type = c.getElementDisplayNameById(elementsID[k])
-                    if stringmatch(type, '^.*Atmospheric Engine$') then
+                    local elemType = c.getElementDisplayNameById(elementsID[k])
+                    if stringmatch(elemType, '^.*Atmospheric Engine$') then
                         if stringmatch(tostring(c.getEngineTagsById(elementsID[k])), '^.*vertical.*$') and c.getElementForwardById(elementsID[k])[3]>0 then
                             UpVertAtmoEngine = true
                         end
                     end
 
-                    if stringmatch(type, '^.*Space Engine$') then
+                    if stringmatch(elemType, '^.*Space Engine$') then
                         SpaceEngines = true
                         if stringmatch(tostring(c.getEngineTagsById(elementsID[k])), '^.*vertical.*$') then
                             local enrot = c.getElementForwardById(elementsID[k])
@@ -307,10 +306,10 @@ function programClass(Nav, c, u, atlas, vBooster, hover, telemeter_1, antigrav, 
                             end
                         end
                     end
-                    if (type == "Landing Gear") then
+                    if (elemType == "Landing Gear") then
                         hasGear = true
                     end
-                    if (type == "Dynamic Core Unit") then
+                    if (elemType == "Dynamic Core Unit") then
                         local hp = eleMaxHp(elementsID[k])
                         if hp > 10000 then
                             coreHalfDiag = 110
@@ -373,7 +372,7 @@ function programClass(Nav, c, u, atlas, vBooster, hover, telemeter_1, antigrav, 
                         v.toggle()
                     end
                 end    
-                if forcefield and (inAtmo or (not inAtmo == 0 and coreAltitude < 10000)) then
+                if forcefield and (inAtmo or (not inAtmo and coreAltitude < 10000)) then
                     for _, v in pairs(forcefield) do
                         v.toggle()
                     end

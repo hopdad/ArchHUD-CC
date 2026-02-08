@@ -551,6 +551,212 @@ end)
 
 
 -----------------------------------------------------------------------
+-- UTILITY FUNCTION TESTS (from baseclass.lua)
+-----------------------------------------------------------------------
+print("\n=== Utility Function Tests ===")
+
+-- Extract utility functions matching baseclass.lua implementations
+local mfloor = math.floor
+local epsilon = 1e-09
+
+local function float_eq_impl(a, b)
+    if a == 0 then
+        return mabs(b) < 1e-09
+    elseif b == 0 then
+        return mabs(a) < 1e-09
+    else
+        return mabs(a - b) < math.max(mabs(a), mabs(b)) * epsilon
+    end
+end
+
+local function round(num, numDecimalPlaces)
+    local mult = 10 ^ (numDecimalPlaces or 0)
+    return mfloor(num * mult + 0.5) / mult
+end
+
+local function addTable(table1, table2)
+    for k, v in pairs(table2) do
+        if type(k) == "string" then
+            table1[k] = v
+        else
+            table1[#table1 + 1] = table2[k]
+        end
+    end
+    return table1
+end
+
+local function getDistanceDisplayString(distance, places)
+    places = places or 1
+    local unit = "m"
+    if distance > 100000 then
+        distance = distance / 200000
+        unit = "su"
+    elseif distance > 1000 then
+        distance = distance / 1000
+        unit = "km"
+    end
+    return round(distance, places) .. unit
+end
+
+local function FormatTimeString(seconds)
+    local minutes = 0
+    local hours = 0
+    local days = 0
+    if seconds < 60 then
+        seconds = mfloor(seconds)
+    elseif seconds < 3600 then
+        minutes = mfloor(seconds / 60)
+        seconds = mfloor(seconds % 60)
+    elseif seconds < 86400 then
+        hours = mfloor(seconds / 3600)
+        minutes = mfloor((seconds % 3600) / 60)
+    else
+        days = mfloor(seconds / 86400)
+        hours = mfloor((seconds % 86400) / 3600)
+    end
+    if days > 365 then
+        return ">1y"
+    elseif days > 0 then
+        return days .. "d " .. hours .. "h "
+    elseif hours > 0 then
+        return hours .. "h " .. minutes .. "m "
+    elseif minutes > 0 then
+        return minutes .. "m " .. seconds .. "s"
+    elseif seconds > 0 then
+        return seconds .. "s"
+    else
+        return "0s"
+    end
+end
+
+-- round() tests
+test("round: integer rounding", function()
+    assertEq(round(3.7), 4, "3.7 -> 4")
+    assertEq(round(3.2), 3, "3.2 -> 3")
+    assertEq(round(3.5), 4, "3.5 -> 4 (round half up)")
+    assertEq(round(-3.5), -3, "-3.5 -> -3")
+end)
+
+test("round: decimal places", function()
+    assertEq(round(3.14159, 2), 3.14, "pi to 2 places", 1e-10)
+    assertEq(round(3.14159, 4), 3.1416, "pi to 4 places", 1e-10)
+    assertEq(round(3.14159, 0), 3, "pi to 0 places", 1e-10)
+    assertEq(round(99.999, 1), 100.0, "99.999 to 1 place", 1e-10)
+end)
+
+test("round: zero and negatives", function()
+    assertEq(round(0, 5), 0, "zero", 1e-10)
+    -- round uses floor(x+0.5), so half-up: -7.555*100+0.5 = -755, floor=-755, /100=-7.55
+    assertEq(round(-7.555, 2), -7.55, "negative to 2 places (half-up)", 1e-10)
+end)
+
+-- float_eq() tests
+test("float_eq: equal values", function()
+    assert(float_eq_impl(1.0, 1.0), "exact equal")
+    assert(float_eq_impl(0, 0), "both zero")
+end)
+
+test("float_eq: near-equal values", function()
+    assert(float_eq_impl(1.0, 1.0 + 1e-12), "within epsilon")
+    assert(not float_eq_impl(1.0, 1.1), "clearly different")
+end)
+
+test("float_eq: zero comparisons", function()
+    assert(float_eq_impl(0, 1e-10), "zero vs tiny")
+    assert(not float_eq_impl(0, 1e-5), "zero vs small")
+    assert(float_eq_impl(1e-10, 0), "tiny vs zero")
+end)
+
+-- FormatTimeString() tests
+test("FormatTimeString: seconds only", function()
+    assertEq(FormatTimeString(0), "0s", "zero")
+    assertEq(FormatTimeString(30), "30s", "30 seconds")
+    assertEq(FormatTimeString(59.9), "59s", "59.9 seconds floors")
+end)
+
+test("FormatTimeString: minutes", function()
+    assertEq(FormatTimeString(60), "1m 0s", "exactly 1 minute")
+    assertEq(FormatTimeString(90), "1m 30s", "1.5 minutes")
+    assertEq(FormatTimeString(3599), "59m 59s", "just under 1 hour")
+end)
+
+test("FormatTimeString: hours", function()
+    assertEq(FormatTimeString(3600), "1h 0m ", "exactly 1 hour")
+    assertEq(FormatTimeString(7200), "2h 0m ", "2 hours")
+    assertEq(FormatTimeString(5400), "1h 30m ", "1.5 hours")
+end)
+
+test("FormatTimeString: days", function()
+    assertEq(FormatTimeString(86400), "1d 0h ", "1 day")
+    assertEq(FormatTimeString(90000), "1d 1h ", "1 day 1 hour")
+end)
+
+test("FormatTimeString: over a year", function()
+    assertEq(FormatTimeString(366 * 86400), ">1y", "over 1 year")
+end)
+
+-- getDistanceDisplayString() tests
+test("getDistanceDisplayString: meters", function()
+    assertEq(getDistanceDisplayString(500), "500.0m", "500m")
+    assertEq(getDistanceDisplayString(0), "0.0m", "0m")
+    assertEq(getDistanceDisplayString(999), "999.0m", "999m")
+end)
+
+test("getDistanceDisplayString: kilometers", function()
+    assertEq(getDistanceDisplayString(1001), "1.0km", "1.001km")
+    assertEq(getDistanceDisplayString(5500), "5.5km", "5.5km")
+    assertEq(getDistanceDisplayString(99999), "100.0km", "100km")
+end)
+
+test("getDistanceDisplayString: SU", function()
+    assertEq(getDistanceDisplayString(200000), "1.0su", "1 SU")
+    assertEq(getDistanceDisplayString(400000), "2.0su", "2 SU")
+    assertEq(getDistanceDisplayString(100001), "0.5su", "0.5 SU")
+end)
+
+test("getDistanceDisplayString: custom decimal places", function()
+    assertEq(getDistanceDisplayString(1234, 2), "1.23km", "1.234km to 2 places")
+    -- round(500,0) returns 500.0 (float) in Lua 5.3, concat produces "500.0m"
+    assertEq(getDistanceDisplayString(500, 0), "500.0m", "500m to 0 places")
+end)
+
+-- addTable() tests
+test("addTable: numeric keys", function()
+    local t1 = {1, 2, 3}
+    local t2 = {4, 5}
+    addTable(t1, t2)
+    assertEq(#t1, 5, "combined length")
+    assertEq(t1[4], 4, "appended value 4")
+    assertEq(t1[5], 5, "appended value 5")
+end)
+
+test("addTable: string keys", function()
+    local t1 = {a = 1}
+    local t2 = {b = 2, c = 3}
+    addTable(t1, t2)
+    assertEq(t1.a, 1, "original key preserved")
+    assertEq(t1.b, 2, "new key b")
+    assertEq(t1.c, 3, "new key c")
+end)
+
+test("addTable: mixed keys", function()
+    local t1 = {10, a = "hello"}
+    local t2 = {20, b = "world"}
+    addTable(t1, t2)
+    assertEq(#t1, 2, "numeric count")
+    assertEq(t1[2], 20, "appended numeric")
+    assertEq(t1.a, "hello", "original string key")
+    assertEq(t1.b, "world", "new string key")
+end)
+
+test("addTable: string key overwrite", function()
+    local t1 = {a = 1}
+    local t2 = {a = 99}
+    addTable(t1, t2)
+    assertEq(t1.a, 99, "overwritten value")
+end)
+
+-----------------------------------------------------------------------
 -- SUMMARY
 -----------------------------------------------------------------------
 print(string.format("\n=== Results: %d passed, %d failed ===", passed, failed))

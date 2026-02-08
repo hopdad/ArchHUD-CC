@@ -137,7 +137,7 @@ local function _A(n)return{set=function(i)_G[n]=i end,get=function()return _G[n]
         constructRight = vec3(C.getWorldOrientationRight()) -- 3
         coreVelocity = vec3(C.getVelocity()) -- 3
         constructVelocity = vec3(C.getWorldVelocity()) -- 4
-        velMag = vec3(constructVelocity):len() -- 3
+        velMag = constructVelocity:len() -- 3
         worldVertical = vec3(c.getWorldVertical()) -- 3
         vSpd = -worldVertical:dot(constructVelocity) -- 2
         worldPos = vec3(C.getWorldPosition()) -- 5
