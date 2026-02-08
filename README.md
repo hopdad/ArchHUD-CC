@@ -30,6 +30,7 @@ ArchHUD can publish telemetry data to your databank, which standalone programmin
 | **Damage Report** | `ArchHUD-Damage.conf` | Ship integrity percentage with color gradient bar, paginated element-by-element breakdown with HP bars, auto-cycling pages |
 | **Telemetry Dashboard** | `ArchHUD-Telemetry.conf` | Flight data (speed, altitude, throttle), autopilot status, fuel levels with bars, ship info and odometer |
 | **Flight Recorder** | `ArchHUD-Recorder.conf` | Black box that records 30 minutes of speed, altitude, and vertical speed as scrolling line charts. Persists across restarts |
+| **Route Planner** | `ArchHUD-Route.conf` | Displays active autopilot route with waypoint list, leg distances, ETAs, progress bar, and saved route preview |
 
 ### Installation (per board)
 
@@ -46,7 +47,7 @@ The boards will display "AWAITING DATA" until you sit in your ArchHUD seat, whic
 
 The telemetry system uses a publish/subscribe pattern through the shared databank:
 
-- **ArchHUD seat** writes flight, autopilot, fuel, ship, radar, and damage data to `T_` prefixed keys in the databank at different intervals (1s / 2s / 10s)
+- **ArchHUD seat** writes flight, autopilot, fuel, ship, radar, damage, and route data to `T_` prefixed keys in the databank at different intervals (1s / 2s / 3s / 10s)
 - **Each programming board** reads those keys on its own timer, decodes the JSON, and renders an SVG dashboard to its linked screen
 - Boards are fully independent — add or remove any combination without affecting ArchHUD or each other
 

@@ -42,4 +42,5 @@ jobs:
             ArchHUD-Telemetry.conf \
             ArchHUD-Radar.conf \
             ArchHUD-Damage.conf \
-            ArchHUD-Recorder.conf
+            ArchHUD-Recorder.conf \
+            ArchHUD-Route.conf

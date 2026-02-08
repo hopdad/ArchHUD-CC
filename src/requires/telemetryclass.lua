@@ -5,9 +5,11 @@ function TelemetryClass(db, jencode, systime, mfloor, c)
     local lastPublish = 0
     local lastRadar = 0
     local lastDamage = 0
+    local lastRoute = 0
     local publishInterval = 1 -- seconds between flight/ap telemetry writes
     local radarInterval = 2   -- seconds between radar data writes
     local damageInterval = 10 -- seconds between damage scans (expensive)
+    local routeInterval = 3   -- seconds between route data writes
     local eleMass = c.getElementMassById
     local eleHp = c.getElementHitPointsById
     local eleMaxHp = c.getElementMaxHitPointsById
@@ -129,6 +131,119 @@ function TelemetryClass(db, jencode, systime, mfloor, c)
         }))
     end
 
+    -- Publish active route with pre-computed distances/ETAs
+    local function publishRoute()
+        local route = apRoute
+        local saved = saveRoute
+        local msqrt = math.sqrt
+        local wp = worldPos
+
+        -- No active route
+        if not route or #route == 0 then
+            local hasSaved = saved and #saved > 0
+            db.setStringValue("T_route", jencode({
+                active = false,
+                saved = hasSaved,
+                savedCount = hasSaved and #saved or 0,
+                savedList = hasSaved and saved or nil
+            }))
+            return
+        end
+
+        -- Build location lookup from customlocations + atlas
+        local locs = {}
+        if customlocations then
+            for i = 1, #customlocations do
+                local loc = customlocations[i]
+                if loc.name then locs[loc.name] = loc end
+            end
+        end
+        if atlas and atlas[0] then
+            for i = 1, #atlas[0] do
+                local entry = atlas[0][i]
+                if entry.name and not locs[entry.name] then
+                    locs[entry.name] = entry
+                end
+            end
+        end
+
+        local waypoints = {}
+        local prevPos = wp
+        local totalDist = 0
+        local remainDist = 0
+        local spd = velMag or 0
+        local currentIdx = 1 -- first waypoint is always the "current" target
+
+        for i = 1, #route do
+            local name = route[i]
+            local loc = locs[name]
+            local pos = loc and loc.position
+            local distFromShip = 0
+            local legDist = 0
+            local planet = loc and loc.planetname or "Unknown"
+
+            if pos and wp then
+                -- vec3 distance from ship
+                local dx = pos.x - wp.x
+                local dy = pos.y - wp.y
+                local dz = pos.z - wp.z
+                distFromShip = mfloor(msqrt(dx*dx + dy*dy + dz*dz))
+            end
+
+            if pos and prevPos then
+                -- leg distance from previous waypoint (or ship for first)
+                local dx = pos.x - prevPos.x
+                local dy = pos.y - prevPos.y
+                local dz = pos.z - prevPos.z
+                legDist = mfloor(msqrt(dx*dx + dy*dy + dz*dz))
+                totalDist = totalDist + legDist
+                prevPos = pos
+            end
+
+            waypoints[i] = {
+                n = name,
+                p = planet,
+                d = distFromShip,
+                leg = legDist,
+                cur = (i == currentIdx)
+            }
+        end
+
+        -- Remaining distance = sum of legs from current waypoint onward
+        for i = currentIdx, #waypoints do
+            remainDist = remainDist + waypoints[i].leg
+        end
+
+        -- ETA based on current speed
+        local totalEta = 0
+        local remainEta = 0
+        if spd > 1 then
+            totalEta = mfloor(totalDist / spd)
+            remainEta = mfloor(remainDist / spd)
+        end
+
+        -- Progress percentage
+        local progress = 0
+        if totalDist > 0 then
+            progress = mfloor((totalDist - remainDist) / totalDist * 1000 + 0.5) / 10
+        end
+
+        db.setStringValue("T_route", jencode({
+            active = true,
+            count = #waypoints,
+            wps = waypoints,
+            totalDist = totalDist,
+            remainDist = remainDist,
+            totalEta = totalEta,
+            remainEta = remainEta,
+            progress = progress,
+            tgt = AutopilotTargetName or "None",
+            spd = mfloor(spd * 100) / 100,
+            saved = saved and #saved > 0,
+            savedCount = saved and #saved or 0
+        }))
+    end
+
     function Telemetry.publish()
         local now = systime()
 
@@ -194,6 +309,12 @@ function TelemetryClass(db, jencode, systime, mfloor, c)
         if now - lastDamage >= damageInterval then
             lastDamage = now
             publishDamage()
+        end
+
+        -- Route data (every 3 seconds)
+        if now - lastRoute >= routeInterval then
+            lastRoute = now
+            publishRoute()
         end
     end
 
