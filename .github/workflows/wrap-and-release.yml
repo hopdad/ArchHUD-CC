@@ -39,4 +39,7 @@ jobs:
             --title "Release v${{ env.VERSION_NUMBER }}" \
             --notes-file ReleaseNotes.md \
             ArchHUD.conf \
-            ArchHUD-Telemetry.conf
+            ArchHUD-Telemetry.conf \
+            ArchHUD-Radar.conf \
+            ArchHUD-Damage.conf \
+            ArchHUD-Recorder.conf
