@@ -66,7 +66,7 @@ function HudClass(Nav, c, u, s, atlas, antigrav, hover, shield, warpdrive, weapo
 
         local function DrawVerticalSpeed(newContent, altitude) -- Draw vertical speed indicator - Code by lisa-lionheart
             if vSpdMeterX == 0 and vSpdMeterY == 0 then return end
-            if (altitude < 200000 and not inAtmo) or (altitude and inAtmo) then
+            if (altitude < 200000 and not inAtmo) or inAtmo then
 
                 local angle = 0
                 if mabs(vSpd) > 1 then
@@ -377,7 +377,6 @@ function HudClass(Nav, c, u, s, atlas, antigrav, hover, shield, warpdrive, weapo
             if throtPosX == 0 and throtPosY == 0 then return end
             local ys = throtPosY-10 
             local x1 = throtPosX + 10
-            newContent[#newContent + 1] = svgText(0,0,"", "pdim txt txtend")
             if isRemote() and not RemoteHud then
                 ys = 75
             end
@@ -521,10 +520,9 @@ function HudClass(Nav, c, u, s, atlas, antigrav, hover, shield, warpdrive, weapo
             end
 
             if collisionAlertStatus then
-
-                local type
-                if string.find(collisionAlertStatus, "COLLISION") then type = "warnings" else type = "crit" end
-                newContent[#newContent + 1] = svgText(warningX, turnBurnY+20, collisionAlertStatus, type)
+                local alertClass
+                if string.find(collisionAlertStatus, "COLLISION") then alertClass = "warnings" else alertClass = "crit" end
+                newContent[#newContent + 1] = svgText(warningX, turnBurnY+20, collisionAlertStatus, alertClass)
             elseif atmosDensity == 0 and not Autopilot then
                 local intersectBody, atmoDistance = AP.checkLOS((constructVelocity):normalize())
                 if atmoDistance ~= nil and velMag > 0 then
@@ -551,11 +549,13 @@ function HudClass(Nav, c, u, s, atlas, antigrav, hover, shield, warpdrive, weapo
 
         local function getAPName(index)
             local name = AutopilotTargetName
-            if index ~= nil and type(index) == "number" then 
+            if index ~= nil and type(index) == "number" then
                 if index == 0 then return "None" end
-                name = AtlasOrdered[index].name
+                if AtlasOrdered[index] then
+                    name = AtlasOrdered[index].name
+                end
             end
-            if name == nil then
+            if name == nil and CustomTarget then
                 name = CustomTarget.name
             end
             if name == nil then
@@ -806,8 +806,8 @@ function HudClass(Nav, c, u, s, atlas, antigrav, hover, shield, warpdrive, weapo
                     -- There is no apoapsis, which means we're escaping (or approaching)
                     -- The planet should end up on the far left and we show a line indicating how close they will pass/are to the planet
                     -- Or, render the Galaxymap very small
-                    local GalaxyMapHTML = "" -- No starting SVG tag so we can add it where we want it
-                    -- Figure out our scale here... 
+                    local galaxyParts = {} -- Use table to avoid O(n^2) string concat
+                    -- Figure out our scale here...
                     local xRatio = 1.2 * (maxAtlasX - minAtlasX) / (orbitMapSize*2) -- Add 10% for padding
                     local yRatio = 1.4 * (maxAtlasY - minAtlasY) / (orbitMapSize*1.5) -- Extra so we can get ion back in
                     for k, v in pairs(atlas[0]) do
@@ -815,13 +815,13 @@ function HudClass(Nav, c, u, s, atlas, antigrav, hover, shield, warpdrive, weapo
                             -- Draw a circle at the scaled coordinates
                             local x = orbitMapX + orbitMapSize + (v.center.x / xRatio)
                             local y = orbitMapY + orbitMapSize*1.5/2 + (v.center.y / yRatio)
-                            GalaxyMapHTML =
-                                GalaxyMapHTML .. '<circle cx="' .. x .. '" cy="' .. y .. '" r="' .. (v.radius / xRatio) * 30 ..
-                                    '" stroke="white" stroke-width="1" fill="blue" />'
+                            galaxyParts[#galaxyParts + 1] = stringf(
+                                '<circle cx="%f" cy="%f" r="%f" stroke="white" stroke-width="1" fill="blue" />',
+                                x, y, (v.radius / xRatio) * 30)
                             if not string.match(v.name, "Moon") and not string.match(v.name, "Sanctuary") and not string.match (v.name, "Space") then
-                                GalaxyMapHTML = GalaxyMapHTML .. "<text x='" .. x .. "' y='" .. y + (v.radius / xRatio) * 30 + 20 ..
-                                                    "' font-size='12' fill=" .. rgb .. " text-anchor='middle' font-family='Montserrat'>" ..
-                                                    v.name .. "</text>"
+                                galaxyParts[#galaxyParts + 1] = stringf(
+                                    "<text x='%f' y='%f' font-size='12' fill=%s text-anchor='middle' font-family='Montserrat'>%s</text>",
+                                    x, y + (v.radius / xRatio) * 30 + 20, rgb, v.name)
                             end
                         end
                     end
@@ -829,22 +829,21 @@ function HudClass(Nav, c, u, s, atlas, antigrav, hover, shield, warpdrive, weapo
                     local pos = vec3(C.getWorldPosition())
                     local x = orbitMapX + orbitMapSize + pos.x / xRatio
                     local y = orbitMapY + orbitMapSize*1.5/2 + pos.y / yRatio
-                    GalaxyMapHTML = GalaxyMapHTML .. '<circle cx="' .. x .. '" cy="' .. y ..
-                                        '" r="2" stroke="white" stroke-width="1" fill="red"/>'
-                    GalaxyMapHTML = GalaxyMapHTML .. "<text x='" .. x .. "' y='" .. y - 10 ..
-                                        "' font-size='14' fill='darkred' text-anchor='middle' font-family='Bank' font-weight='bold'>You Are Here</text>"
-                    
+                    galaxyParts[#galaxyParts + 1] = stringf(
+                        '<circle cx="%f" cy="%f" r="2" stroke="white" stroke-width="1" fill="red"/>', x, y)
+                    galaxyParts[#galaxyParts + 1] = stringf(
+                        "<text x='%f' y='%f' font-size='14' fill='darkred' text-anchor='middle' font-family='Bank' font-weight='bold'>You Are Here</text>",
+                        x, y - 10)
+
                     MapXRatio = xRatio
                     MapYRatio = yRatio
                     -- And, if we can, draw a velocity line
-                    -- We would need to project velocity on the plane of 0,0,1
-                    -- Or the simplest, laziest way.  Project the point they'd be at after a while
                     local futurePoint = pos + constructVelocity*1000000
                     local x2 = orbitMapX + orbitMapSize + futurePoint.x / xRatio
                     local y2 = orbitMapY + orbitMapSize*1.5/2 + futurePoint.y / yRatio
-                    GalaxyMapHTML = GalaxyMapHTML .. '<line x1="' .. x .. '" y1="' .. y ..
-                                        '" x2="' .. x2 .. '" y2="' .. y2 .. '" stroke="purple" stroke-width="1"/>'
-                    newContent[#newContent + 1] = GalaxyMapHTML
+                    galaxyParts[#galaxyParts + 1] = stringf(
+                        '<line x1="%f" y1="%f" x2="%f" y2="%f" stroke="purple" stroke-width="1"/>', x, y, x2, y2)
+                    newContent[#newContent + 1] = table.concat(galaxyParts)
                     newContent[#newContent + 1] = '</g>'
                 end
             elseif SelectedTab == "INFO" then
@@ -888,8 +887,9 @@ function HudClass(Nav, c, u, s, atlas, antigrav, hover, shield, warpdrive, weapo
                     local targetN = target:normalize()
                    
                     local horizontalRight = target:cross(cameraForward):normalize()
-                    local rollRad = math.acos(horizontalRight:dot(cameraRight))
-                    if rollRad ~= rollRad then rollRad = 0 end -- I don't know why this would fail but it does... so this fixes it... 
+                    local dotVal = horizontalRight:dot(cameraRight)
+                    dotVal = dotVal > 1 and 1 or (dotVal < -1 and -1 or dotVal)
+                    local rollRad = math.acos(dotVal)
                     if horizontalRight:cross(cameraRight):dot(cameraForward) < 0 then rollRad = -rollRad end
 
                     local flatlen = target:project_on_plane(cameraForward):len()
@@ -912,12 +912,12 @@ function HudClass(Nav, c, u, s, atlas, antigrav, hover, shield, warpdrive, weapo
                     local cursorDistance = ((x-orbitMidX)*(x-orbitMidX))+((y-orbitMidY)*(y-orbitMidY))
                     
                     -- Get the view angle from the center to the edge of a planet using trig
-                    local topAngle = math.asin((v.radius+v.surfaceMaxAltitude)/targetDistance)*constants.rad2deg
-                    if topAngle ~= topAngle then topAngle = fov end
+                    local topSin = (v.radius+v.surfaceMaxAltitude)/targetDistance
+                    local topAngle = (topSin <= 1) and math.asin(topSin)*constants.rad2deg or fov
                     local size = topAngle/fov*orbitMapHeight
 
-                    local atmoAngle = math.asin((v.atmosphereRadius)/targetDistance)*constants.rad2deg
-                    if atmoAngle ~= atmoAngle then atmoAngle = topAngle end -- hide atmo if inside it
+                    local atmoSin = (v.atmosphereRadius)/targetDistance
+                    local atmoAngle = (atmoSin <= 1) and math.asin(atmoSin)*constants.rad2deg or topAngle
                     local atmoSize = atmoAngle/fov*orbitMapHeight
 
                     local distance = getDistanceDisplayString(targetDistance,1)
@@ -1145,8 +1145,9 @@ function HudClass(Nav, c, u, s, atlas, antigrav, hover, shield, warpdrive, weapo
                     local targetN = target:normalize()
                     local flatlen = target:project_on_plane(cameraForward):len()
                     local horizontalRight = target:cross(cameraForward):normalize()
-                    local rollRad = math.acos(horizontalRight:dot(cameraRight))
-                    if rollRad ~= rollRad then rollRad = 0 end -- Again, idk how this could happen but it does
+                    local dotVal2 = horizontalRight:dot(cameraRight)
+                    dotVal2 = dotVal2 > 1 and 1 or (dotVal2 < -1 and -1 or dotVal2)
+                    local rollRad = math.acos(dotVal2)
                     if horizontalRight:cross(cameraRight):dot(cameraForward) < 0 then rollRad = -rollRad end
                     local xAngle = math.sin(rollRad)*math.asin(flatlen/target:len())*constants.rad2deg
                     local yAngle = math.cos(rollRad)*math.asin(flatlen/target:len())*constants.rad2deg
@@ -1513,13 +1514,13 @@ function HudClass(Nav, c, u, s, atlas, antigrav, hover, shield, warpdrive, weapo
                 function() return AutopilotTargetIndex > 0 and CustomTarget ~= nil
                 end)
             MakeButton("Save Heading", "Clear Heading", 200, apbutton.height, apbutton.x + apbutton.width + 30, apbutton.y + apbutton.height + 20,
-                function() return CustomTarget.heading ~= nil end, 
-                function() if CustomTarget.heading ~= nil then UpdatePosition(false) else UpdatePosition(true) end end, 
+                function() return CustomTarget ~= nil and CustomTarget.heading ~= nil end,
+                function() if CustomTarget and CustomTarget.heading ~= nil then UpdatePosition(false) else UpdatePosition(true) end end,
                 function() return AutopilotTargetIndex > 0 and CustomTarget ~= nil
                 end)
             MakeButton("Save AGG Alt", "Clear AGG Alt", 200, apbutton.height, apbutton.x + apbutton.width + 30, apbutton.y + apbutton.height*2 + 40,
-                function() return CustomTarget.agg ~= nil end, 
-                function() if CustomTarget.agg ~= nil then UpdatePosition(nil, false) else UpdatePosition(nil, true) end end, 
+                function() return CustomTarget ~= nil and CustomTarget.agg ~= nil end,
+                function() if CustomTarget and CustomTarget.agg ~= nil then UpdatePosition(nil, false) else UpdatePosition(nil, true) end end,
                 function() return AutopilotTargetIndex > 0 and CustomTarget ~= nil and antigrav
                 end)
             MakeButton("Clear Position", "Clear Position", 200, apbutton.height, apbutton.x - 200 - 30, apbutton.y,
@@ -1587,7 +1588,7 @@ function HudClass(Nav, c, u, s, atlas, antigrav, hover, shield, warpdrive, weapo
                     if (repairArrows) then
                         msg ("Repair Arrows Enabled")
                     else
-                        msg ("Repair Arrows Diabled")
+                        msg ("Repair Arrows Disabled")
                     end
                 end, function()
                     return isRemote() 
@@ -1725,9 +1726,9 @@ function HudClass(Nav, c, u, s, atlas, antigrav, hover, shield, warpdrive, weapo
                     else
                         newContent[#newContent + 1] = stringf([[<g transform="rotate(0,%d,%d)">]], centerX, centerY)
                     end
-                    newContent[#newContent + 1] = stringf([[<<polygon points="%d,%d %d,%d %d,%d"/> class="pdim txtend"><text x="%d" y="%f">%d</text>]],
+                    newContent[#newContent + 1] = stringf([[<polygon points="%d,%d %d,%d %d,%d" class="pdim"/><text x="%d" y="%f" class="pdim txtend">%d</text>]],
                     centerX-pitchX+25, centerY-5, centerX-pitchX+20, centerY, centerX-pitchX+25, centerY+5, centerX-pitchX+50, centerY+4, pitchC)
-                    newContent[#newContent + 1] = stringf([[<<polygon points="%d,%d %d,%d %d,%d"/> class="pdim txtend"><text x="%d" y="%f">%d</text>]],
+                    newContent[#newContent + 1] = stringf([[<polygon points="%d,%d %d,%d %d,%d" class="pdim"/><text x="%d" y="%f" class="pdim txtend">%d</text>]],
                     centerX+pitchX-25, centerY-5, centerX+pitchX-20, centerY, centerX+pitchX-25, centerY+5, centerX+pitchX-30, centerY+4, pitchC)
                     newContent[#newContent +1] = "</g>"
                 end
@@ -1785,7 +1786,7 @@ function HudClass(Nav, c, u, s, atlas, antigrav, hover, shield, warpdrive, weapo
                 newContent[#newContent + 1] = svgText(centerX, centerY+horizonRadius+OFFSET-35, bottomText, "pdim txt txtmid")
                 newContent[#newContent + 1] = svgText(centerX, centerY+horizonRadius+OFFSET-25, rollC.." deg", "pdim txt txtmid")
                 newContent[#newContent + 1] = stringf([[<g transform="rotate(%f,%d,%d)">]], -originalRoll, centerX, centerY)
-                newContent[#newContent + 1] = stringf([[<<polygon points="%d,%d %d,%d %d,%d"/>]],
+                newContent[#newContent + 1] = stringf([[<polygon points="%d,%d %d,%d %d,%d"/>]],
                     centerX-5, centerY+horizonRadius+OFFSET-20, centerX+5, centerY+horizonRadius+OFFSET-20, centerX, centerY+horizonRadius+OFFSET-15)
                 newContent[#newContent +1] = "</g>"
             end
@@ -1826,7 +1827,7 @@ function HudClass(Nav, c, u, s, atlas, antigrav, hover, shield, warpdrive, weapo
                 end
             end
             newContent[#newContent + 1] = tickerPath .. [["/>]]
-            newContent[#newContent + 1] = stringf([[<<polygon class="bright" points="%d,%d %d,%d %d,%d"/>]],
+            newContent[#newContent + 1] = stringf([[<polygon class="bright" points="%d,%d %d,%d %d,%d"/>]],
                 yawx-5, yawy-20, yawx+5, yawy-20, yawx, yawy-10)
             --if DisplayOdometer then 
                 if nearPlanet then bottomText = "HDG" end
@@ -2314,7 +2315,7 @@ function HudClass(Nav, c, u, s, atlas, antigrav, hover, shield, warpdrive, weapo
 
                                 fuelMass = (eleMass(tankTable[i][tankID]) - tankTable[i][tankMassEmpty])
                                 fuelMassLast = tankTable[i][tankLastMass]
-                                local usedFuel = fuelMassLast > fuelMass or false
+                                local usedFuel = fuelMassLast ~= nil and fuelMassLast > fuelMass
                                 if usedFuel then 
                                     fuelUsed[slottedTankType] = fuelUsed[slottedTankType]+(fuelMassLast - fuelMass) 
                                 end
@@ -2400,6 +2401,7 @@ function HudClass(Nav, c, u, s, atlas, antigrav, hover, shield, warpdrive, weapo
 
                     tankY = y1
                 end
+                local previous = nil
                 -- FUEL TANKS
                 if (fuelX ~= 0 and fuelY ~= 0) then
                     tankMessage = svgText(fuelX, fuelY, "", "txtstart pdim txtfuel")
@@ -2508,17 +2510,17 @@ function HudClass(Nav, c, u, s, atlas, antigrav, hover, shield, warpdrive, weapo
                     end
                 end
                 if not inAtmo and WasInAtmo then
-                    if sysUpData(widgetMaxBrakeTimeText, widgetMaxBrakeTime)  then
+                    if not sysUpData(widgetMaxBrakeTimeText, widgetMaxBrakeTime) then
                         sysAddData(widgetMaxBrakeTimeText, widgetMaxBrakeTime) end
-                    if sysUpData(widgetMaxBrakeTimeText, widgetStopSpeed)  then
+                    if not sysUpData(widgetStopSpeedText, widgetStopSpeed) then
                         sysAddData(widgetStopSpeedText, widgetStopSpeed) end
-                    if sysUpData(widgetMaxBrakeDistanceText, widgetMaxBrakeDistance)  then
+                    if not sysUpData(widgetMaxBrakeDistanceText, widgetMaxBrakeDistance) then
                         sysAddData(widgetMaxBrakeDistanceText, widgetMaxBrakeDistance) end
-                    if sysUpData(widgetCurBrakeTimeText, widgetCurBrakeTime)  then
+                    if not sysUpData(widgetCurBrakeTimeText, widgetCurBrakeTime) then
                         sysAddData(widgetCurBrakeTimeText, widgetCurBrakeTime) end
-                    if sysUpData(widgetCurBrakeDistanceText, widgetCurBrakeDistance)  then
+                    if not sysUpData(widgetCurBrakeDistanceText, widgetCurBrakeDistance) then
                         sysAddData(widgetCurBrakeDistanceText, widgetCurBrakeDistance) end
-                    if sysUpData(widgetTrajectoryAltitudeText, widgetTrajectoryAltitude) then
+                    if not sysUpData(widgetTrajectoryAltitudeText, widgetTrajectoryAltitude) then
                         sysAddData(widgetTrajectoryAltitudeText, widgetTrajectoryAltitude) end
                     WasInAtmo = false
                 end
@@ -2583,7 +2585,7 @@ function HudClass(Nav, c, u, s, atlas, antigrav, hover, shield, warpdrive, weapo
                     end
                     -- Thanks to Jerico for the help and code starter for arrow markers!
                     if repairArrows and #markers == 0 then
-                        position = vec3(c.getElementPositionById(elementsID[k]))
+                        local position = vec3(c.getElementPositionById(elementsID[k]))
                         local x = position.x 
                         local y = position.y 
                         local z = position.z 
@@ -2856,7 +2858,8 @@ function HudClass(Nav, c, u, s, atlas, antigrav, hover, shield, warpdrive, weapo
             local mass = coreMass > 1000000 and round(coreMass / 1000000,2).." kTons" or round(coreMass / 1000, 2).." Tons"
             if inAtmo then brakeValue = LastMaxBrakeInAtmo else brakeValue = LastMaxBrake end
             local brkDist, brkTime = Kinematic.computeDistanceAndTime(velMag, 0, coreMass, 0, 0, brakeValue)
-    
+            if brkDist < 0 then brkDist = 0 end
+
             local maxThrust = Nav:maxForceForward()
             gravity = c.getGravityIntensity()
             if gravity < 0.1 then gravity = 9.80665 end
