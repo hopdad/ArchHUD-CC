@@ -571,6 +571,7 @@ function programClass(Nav, c, u, atlas, vBooster, hover, telemeter_1, antigrav, 
             CONTROL = ControlClass(Nav, c, u, s, atlas, vBooster, hover, antigrav, shield, dbHud_2, gyro, screenHud_1,
                 isRemote, navCom, sysIsVwLock, sysLockVw, sysDestWid, round, stringmatch, tonum, uclamp, play, saveableVariables, SaveDataBank, msg, transponder, jencode)
             if shield then SHIELD = ShieldClass(shield, stringmatch, mfloor, msg) end
+            if TelemetryClass and dbHud_1 then TELEMETRY = TelemetryClass(dbHud_1, jencode, systime, mfloor, c) end
             coroutine.yield()
             u.hideWidget()
             s.showScreen(true)
@@ -762,6 +763,7 @@ function programClass(Nav, c, u, atlas, vBooster, hover, telemeter_1, antigrav, 
             if HUD then HUD.TenthTick() end
         elseif timerId == "oneSecond" then -- Timer for evaluation every 1 second
             if HUD then HUD.OneSecondTick() end
+            if TELEMETRY then TELEMETRY.publish() end
         elseif timerId == "msgTick" then -- Timer executed whenever msgText is applied somwehere
             if HUD then HUD.MsgTick() end
         elseif timerId == "animateTick" then -- Timer for animation

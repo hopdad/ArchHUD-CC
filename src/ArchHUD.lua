@@ -157,7 +157,8 @@ end
 
 local requireTable = {"autoconf/custom/archhud/globals","autoconf/custom/archhud/hudclass", "autoconf/custom/archhud/apclass", "autoconf/custom/archhud/controlclass",
                       "autoconf/custom/archhud/atlasclass", "autoconf/custom/archhud/baseclass", "autoconf/custom/archhud/shieldclass",
-                      "autoconf/custom/archhud/radarclass", "autoconf/custom/archhud/axiscommandoverride", "autoconf/custom/archhud/fueltankdefinitions", "autoconf/custom/archhud/userclass"}
+                      "autoconf/custom/archhud/radarclass", "autoconf/custom/archhud/axiscommandoverride", "autoconf/custom/archhud/fueltankdefinitions",
+                      "autoconf/custom/archhud/telemetryclass", "autoconf/custom/archhud/userclass"}
 
 for k,v in ipairs(requireTable) do
     pcall(require,requireTable[k])
