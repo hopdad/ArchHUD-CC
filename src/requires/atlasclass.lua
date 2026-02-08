@@ -644,7 +644,8 @@ function Keplers(Nav, c, u, s, stringf, uclamp, tonum, msqrt, float_eq)
             trueAnomaly = -(trueAnomaly - 2 * math.pi)
         end
         -- Apparently... cos(EccentricAnomaly) = (cos(trueAnomaly) + eccentricity)/(1 + eccentricity * cos(trueAnomaly))
-        local eaCos = (math.cos(trueAnomaly) + ecc) / (1 + ecc * math.cos(trueAnomaly))
+        local eaDenom = 1 + ecc * math.cos(trueAnomaly)
+        local eaCos = math.abs(eaDenom) > 1e-10 and (math.cos(trueAnomaly) + ecc) / eaDenom or 1
         eaCos = eaCos > 1 and 1 or (eaCos < -1 and -1 or eaCos)
         local EccentricAnomaly = math.acos(eaCos)
         -- Then.... apparently if this is below 0, we should add 2pi to it
