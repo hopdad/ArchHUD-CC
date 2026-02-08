@@ -1,7 +1,42 @@
+--- Autopilot class — handles all autopilot modes: interplanetary travel, altitude hold,
+--- vector-to-target, orbital insertion, brake landing, reentry, vertical takeoff, and
+--- turn-burn. Called at 60 FPS via onFlush for flight control, plus 10 Hz for secondary
+--- calculations (TenthTick) and 1 Hz for brake refresh (oneSecond).
+---
+--- @param Nav         Navigator instance (provides engine commands, force queries)
+--- @param c           core unit reference (world position, velocity, orientation)
+--- @param u           unit reference (timers, throttle, exit)
+--- @param atlas       planet atlas table (atlas[0] = all bodies + custom locations)
+--- @param vBooster    vertical booster element (ground detection), may be nil
+--- @param hover       hover engine element (ground detection), may be nil
+--- @param telemeter_1 telemeter element (raycast ground detection), may be nil
+--- @param antigrav    anti-gravity generator element, may be nil
+--- @param dbHud_1     primary databank, may be nil
+--- @param mabs        math.abs cached reference
+--- @param mfloor      math.floor cached reference
+--- @param atmosphere  function returning current atmospheric density (0-1)
+--- @param isRemote    function returning true if pilot is using remote controller
+--- @param atan        math.atan cached reference
+--- @param systime     system.getArkTime cached reference
+--- @param uclamp      clamp(value, min, max) utility function
+--- @param navCom      navigation computer (throttle/cruise commands, axis control)
+--- @param sysUpData   system.updateData cached reference
+--- @param sysIsVwLock system.isViewLocked cached reference
+--- @param msqrt       math.sqrt cached reference
+--- @param round       round(value, places) utility function
+--- @param play        sound playback function play(id, category, priority)
+--- @param addTable    table merge utility (appends entries from src to dest)
+--- @param float_eq    floating point equality comparison function
+--- @param getDistanceDisplayString  format distance as "m"/"km"/"su" string
+--- @param FormatTimeString          format seconds as "Xd Xh"/"Xh Xm"/"Xm Xs" string
+--- @param SaveDataBank              persist all autoVariables to databank
+--- @param jdecode     json.decode cached reference
+--- @param msg         HUD message display function
+--- @return table      ap — autopilot interface with public methods
 function APClass(Nav, c, u, atlas, vBooster, hover, telemeter_1, antigrav, dbHud_1,
-    mabs, mfloor, atmosphere, isRemote, atan, systime, uclamp, 
+    mabs, mfloor, atmosphere, isRemote, atan, systime, uclamp,
     navCom, sysUpData, sysIsVwLock, msqrt, round, play, addTable, float_eq,
-    getDistanceDisplayString, FormatTimeString, SaveDataBank, jdecode, msg)  
+    getDistanceDisplayString, FormatTimeString, SaveDataBank, jdecode, msg)
     local s = DUSystem
     local C = DUConstruct
 
@@ -53,9 +88,12 @@ function APClass(Nav, c, u, atlas, vBooster, hover, telemeter_1, antigrav, dbHud
         local function safeZone() -- Thanks to @SeM for the base code, modified to work with existing Atlas
             return (not C.isInPvPZone()), mabs(C.getDistanceToSafeZone())
         end
+        --- Compute the distance and time needed to brake from current speed to final speed.
+        --- Uses atmospheric brakes when in atmosphere, space brakes otherwise.
+        --- @param speed number  current velocity in m/s
+        --- @return number distance  brake distance in meters (-1 if no solution)
+        --- @return number time      brake time in seconds (-1 if no solution)
         local function GetAutopilotBrakeDistanceAndTime(speed)
-            -- If we're in atmo, just return some 0's or LastMaxBrake, whatever's bigger
-            -- So we don't do unnecessary API calls when atmo brakes don't tell us what we want
             local finalSpeed = AutopilotEndSpeed
             if not Autopilot then finalSpeed = 0 end
             local whichBrake = LastMaxBrake
@@ -63,19 +101,41 @@ function APClass(Nav, c, u, atlas, vBooster, hover, telemeter_1, antigrav, dbHud
                 if LastMaxBrakeInAtmo and LastMaxBrakeInAtmo > 0 then
                     whichBrake = LastMaxBrakeInAtmo
                 else
-                    return 0, 0
+                    -- No atmospheric brake data yet — return large values to be safe
+                    -- rather than 0,0 which falsely implies we can stop instantly
+                    return speed * 60, 60
                 end
             end
-            return Kinematic.computeDistanceAndTime(speed, finalSpeed, coreMass, 0, 0,
+            local dist, time = Kinematic.computeDistanceAndTime(speed, finalSpeed, coreMass, 0, 0,
                     whichBrake)
+            -- Guard against -1 error codes from Kinematic (insufficient braking force)
+            if dist < 0 then
+                dist = speed * 120 -- Conservative fallback: assume 2 minutes to stop
+                time = 120
+            end
+            return dist, time
         end
+        --- Compute brake distance/time for Turn & Burn mode (using forward thrust as well).
+        --- @param speed number  current velocity in m/s
+        --- @return number distance  brake distance in meters
+        --- @return number time      brake time in seconds
         local function GetAutopilotTBBrakeDistanceAndTime(speed)
             local finalSpeed = AutopilotEndSpeed
             if not Autopilot then finalSpeed = 0 end
 
-            return Kinematic.computeDistanceAndTime(speed, finalSpeed, coreMass, Nav:maxForceForward(),
+            local dist, time = Kinematic.computeDistanceAndTime(speed, finalSpeed, coreMass, Nav:maxForceForward(),
                     warmup, LastMaxBrake)
+            if dist < 0 then
+                dist = speed * 120
+                time = 120
+            end
+            return dist, time
         end
+        --- Compute the signed angle (radians) between two vectors projected onto a plane.
+        --- @param normal vec3  plane normal defining the rotation axis
+        --- @param vecA   vec3  start direction vector
+        --- @param vecB   vec3  end direction vector
+        --- @return number  signed angle in radians (-pi to pi)
         local function signedRotationAngle(normal, vecA, vecB)
             vecA = vecA:project_on_plane(normal)
             vecB = vecB:project_on_plane(normal)
@@ -83,6 +143,9 @@ function APClass(Nav, c, u, atlas, vBooster, hover, telemeter_1, antigrav, dbHud
         end
         local lastvgd = -1
         local lasthgd = -1
+        --- Determine the ship's height above ground using hover sensors, telemeter,
+        --- and AGG altitude. Returns the best (lowest) reliable reading.
+        --- @return number  distance above ground in meters, or -1 if no ground detected
         local function AboveGroundLevel()
             local function hoverDetectGround()
                 local vgroundDistance = -1
@@ -131,6 +194,11 @@ function APClass(Nav, c, u, atlas, vBooster, hover, telemeter_1, antigrav, dbHud
                 return groundDistance
             end
         end
+        --- Convert world coordinates to a DU map waypoint string (::pos{...}).
+        --- @param planet      table   planet/body reference from atlas
+        --- @param coordinates vec3    world position to convert
+        --- @param dontSet     boolean if true, return string without setting the waypoint
+        --- @return string|boolean  waypoint string if dontSet, true otherwise
         local function showWaypoint(planet, coordinates, dontSet)
             local function zeroConvertToMapPosition(targetplanet, worldCoordinates)
                 local worldVec = vec3(worldCoordinates)
@@ -170,47 +238,57 @@ function APClass(Nav, c, u, atlas, vBooster, hover, telemeter_1, antigrav, dbHud
                 return true
             end
         end
-        local function AlignToWorldVector(vector, tolerance, damping) -- Aligns ship to vector with a tolerance and a damping override of user damping if needed.
-            local function getMagnitudeInDirection(vector, direction)
-                -- return vec3(vector):project_on(vec3(direction)):len()
-                vector = vec3(vector)
+        --- Align the ship's forward vector to a world-space direction vector.
+        --- Uses derivative damping to reduce oscillation. Applies yaw and pitch inputs
+        --- directly to yawInput2/pitchInput2 control channels.
+        --- Must be called every frame (from onFlush) for smooth alignment.
+        --- @param vector    vec3    target direction to align ship forward to (will be normalized)
+        --- @param tolerance number  alignment tolerance in radians (default 0.001)
+        --- @param damping   number  derivative damping multiplier (default DampingMultiplier)
+        local function AlignToWorldVector(vector, tolerance, damping)
+            if not vector then return end -- Guard against nil vector (fix #9)
+            local function getMagnitudeInDirection(vec, direction)
+                vec = vec3(vec)
                 direction = vec3(direction):normalize()
-                local result = vector * direction -- To preserve sign, just add them I guess
-                
+                local result = vec * direction
                 return result.x + result.y + result.z
             end
-            -- Sets inputs to attempt to point at the autopilot target
-            -- Meant to be called from Update or Tick repeatedly
-            local alignmentTolerance = 0.001 -- How closely it must align to a planet before accelerating to it
-            local autopilotStrength = 1 -- How strongly autopilot tries to point at a target
+            local alignmentTolerance = 0.001
+            local autopilotStrength = 1
+            local maxInputDelta = 0.15 -- Rate limit: max change per frame to prevent instability
             if not inAtmo or not stalling or abvGndDet ~= -1 or velMag < minAutopilotSpeed then
                 if damping == nil then
                     damping = DampingMultiplier
                 end
-    
+
                 if tolerance == nil then
                     tolerance = alignmentTolerance
                 end
                 vector = vec3(vector):normalize()
-                local targetVec = (vec3() - vector)
+                local targetVec = -vector
                 local yawAmount = -getMagnitudeInDirection(targetVec, C.getWorldOrientationRight()) * autopilotStrength
                 local pitchAmount = -getMagnitudeInDirection(targetVec, C.getWorldOrientationUp()) * autopilotStrength
                 if previousYawAmount == 0 then previousYawAmount = yawAmount / 2 end
                 if previousPitchAmount == 0 then previousPitchAmount = pitchAmount / 2 end
-                -- Skip dampening at very low values, and force it to effectively overshoot so it can more accurately align back
-                -- Instead of taking literal forever to converge
+                -- Skip dampening at very low values and overshoot to converge faster
+                local yawDelta, pitchDelta
                 if mabs(yawAmount) < 0.1 then
-                    yawInput2 = yawInput2 - yawAmount*2
+                    yawDelta = -yawAmount*2
                 else
-                    yawInput2 = yawInput2 - (yawAmount + (yawAmount - previousYawAmount) * damping)
+                    yawDelta = -(yawAmount + (yawAmount - previousYawAmount) * damping)
                 end
                 if mabs(pitchAmount) < 0.1 then
-                    pitchInput2 = pitchInput2 + pitchAmount*2
+                    pitchDelta = pitchAmount*2
                 else
-                    pitchInput2 = pitchInput2 + (pitchAmount + (pitchAmount - previousPitchAmount) * damping)
+                    pitchDelta = (pitchAmount + (pitchAmount - previousPitchAmount) * damping)
                 end
-    
-    
+                -- Rate limit to prevent extreme control inputs (fix #16)
+                yawDelta = uclamp(yawDelta, -maxInputDelta, maxInputDelta)
+                pitchDelta = uclamp(pitchDelta, -maxInputDelta, maxInputDelta)
+                yawInput2 = yawInput2 + yawDelta
+                pitchInput2 = pitchInput2 + pitchDelta
+
+
                 previousYawAmount = yawAmount
                 previousPitchAmount = pitchAmount
                 -- Return true or false depending on whether or not we're aligned
@@ -987,13 +1065,16 @@ function APClass(Nav, c, u, atlas, vBooster, hover, telemeter_1, antigrav, dbHud
                 return accelTime + brakeTime + cruiseTime
             end
         end
+        --- Refresh the cached maximum brake force values. Called from oneSecond tick.
+        --- Adjusts brake force for current speed and atmospheric density.
+        --- Space and atmospheric brakes are cached separately (LastMaxBrake, LastMaxBrakeInAtmo).
         local function RefreshLastMaxBrake()
             local gravity = c.getGravityIntensity()
             gravity = round(gravity, 5) -- round to avoid insignificant updates
             if lastMaxBrakeAtG == nil or lastMaxBrakeAtG ~= gravity then
                 local speed = coreVelocity:len()
                 local maxBrake = C.getMaxBrake()
-                if maxBrake ~= nil and maxBrake > 0 and inAtmo then 
+                if maxBrake ~= nil and maxBrake > 0 and inAtmo and atmosDensity > 0.0001 then
                     maxBrake = maxBrake / uclamp(speed/100, 0.1, 1)
                     maxBrake = maxBrake / atmosDensity
                     if atmosDensity > 0.10 then 
@@ -1011,6 +1092,12 @@ function APClass(Nav, c, u, atlas, vBooster, hover, telemeter_1, antigrav, dbHud
             end
         end
 
+        --- Compute perpendicular distance from the ship to the "pipe" (straight line)
+        --- between two celestial body centers.
+        --- @param origCenter vec3  center of origin body
+        --- @param destCenter vec3  center of destination body
+        --- @return number distance  perpendicular distance from ship to pipe in meters
+        --- @return vec3   point     closest point on the pipe to the ship
         local function getPipeDistance(origCenter, destCenter)  -- Many thanks to Tiramon for the idea and functionality.
             local pipeDistance
             local pipe = (destCenter - origCenter):normalize()
@@ -1021,6 +1108,9 @@ function APClass(Nav, c, u, atlas, vBooster, hover, telemeter_1, antigrav, dbHud
             return pipeDistance, L
         end
 
+        --- Find the nearest interplanetary pipe (flight lane between planet centers)
+        --- to the ship. Also computes the pipe to the autopilot target if set.
+        --- Updates pipePosC, pipeDestC, pipeDistC (closest) and pipePosT, pipeDestT, pipeDistT (target).
         local function getClosestPipe() -- Many thanks to Tiramon for the idea and functionality, thanks to Dimencia for the assist
             local tempPos, tempPos2 = nil,nil
             local nearestDistance = nil
@@ -1173,12 +1263,15 @@ function APClass(Nav, c, u, atlas, vBooster, hover, telemeter_1, antigrav, dbHud
             return pitch
         end
 
+        --- Check for collision with celestial bodies detected by radar and trigger
+        --- emergency braking if the ship is on a collision course.
+        --- Sets collisionAlertStatus for HUD display and plays alarm sounds.
         local function checkCollision()
             if collisionTarget and not BrakeLanding then
                 local body = collisionTarget[1]
-                local far, near = collisionTarget[2],collisionTarget[3] 
+                local far, near = collisionTarget[2],collisionTarget[3]
                 local collisionDistance = math.min(far, near or far)
-                local collisionTime = collisionDistance/velMag
+                local collisionTime = velMag > 0.1 and (collisionDistance / velMag) or 99999
                 local ignoreCollision = AutoTakeoff and (velMag < 42 or abvGndDet ~= -1)
                 local apAction = (AltitudeHold or VectorToTarget or LockPitch or Autopilot)
                 if apAction and not ignoreCollision and (brakeDistance*1.5 > collisionDistance or collisionTime < 1) then
@@ -1215,7 +1308,6 @@ function APClass(Nav, c, u, atlas, vBooster, hover, telemeter_1, antigrav, dbHud
         local OrbitPitchPID = pid.new(1 * 0.01, 0, 5 * 0.1)
         local rollPID = pid.new(autoRollFactor * 0.01, 0, autoRollFactor * 0.1) -- magic number tweaked to have a default factor in the 1-10 range
         local vTpitchPID = pid.new(2 * 0.01, 0, 2 * 0.1)
-        local OrbitPitchPID = pid.new(1 * 0.01, 0, 5 * 0.1)
         local apPitchPID = pid.new(2 * 0.01, 0, 2 * 0.1) -- magic number tweaked to have a default factor in the 1-10 range
         local apYawPID = pid.new(2 * 0.01, 0, 2 * 0.1) -- magic number tweaked to have a default factor in the 1-10 range
         local pitchPID = pid.new(2 * 0.01, 0, 2 * 0.1) -- magic number tweaked to have a default factor in the 1-10 range
@@ -1324,9 +1416,17 @@ function APClass(Nav, c, u, atlas, vBooster, hover, telemeter_1, antigrav, dbHud
 
         brakeInput2 = 0
 
-    -- Start old APTick Code 
+    -- Start old APTick Code
         atmosDensity = atmosphere()
-        inAtmo = false or (coreAltitude < planet.noAtmosphericDensityAltitude and atmosDensity > 0.00001 )
+        -- Hysteresis on atmo/space transition to prevent oscillation near boundary (fix #13)
+        local atmoThreshold = 0.00001
+        if inAtmo then
+            -- Already in atmo: require density to drop below a lower threshold to exit
+            inAtmo = coreAltitude < (planet.noAtmosphericDensityAltitude + 2000) and atmosDensity > atmoThreshold * 0.1
+        else
+            -- In space: require density above threshold to enter atmo
+            inAtmo = coreAltitude < planet.noAtmosphericDensityAltitude and atmosDensity > atmoThreshold
+        end
 
         --coreAltitude = c.getAltitude()
         coreAltitude = (worldPos - planet.center):len() - planet.radius
@@ -1376,8 +1476,14 @@ function APClass(Nav, c, u, atlas, vBooster, hover, telemeter_1, antigrav, dbHud
 
         local cWorldPos = C.getWorldPosition()
         planet = sys:closestBody(cWorldPos)
-        kepPlanet = Kep(planet)
-        orbit = kepPlanet:orbitalParameters(cWorldPos, constructVelocity)
+        -- Only compute full orbital parameters when an AP mode needs them (fix #11)
+        if Autopilot or IntoOrbit or MaintainOrbit or AltitudeHold or BrakeLanding then
+            kepPlanet = Kep(planet)
+            orbit = kepPlanet:orbitalParameters(cWorldPos, constructVelocity)
+        elseif not kepPlanet then
+            kepPlanet = Kep(planet)
+            orbit = kepPlanet:orbitalParameters(cWorldPos, constructVelocity)
+        end
         nearPlanet = u.getClosestPlanetInfluence() > 0 or (coreAltitude > 0 and coreAltitude < 200000)
 
         local gravity = planet:getGravity(cWorldPos):len() * coreMass
@@ -2066,7 +2172,7 @@ function APClass(Nav, c, u, atlas, vBooster, hover, telemeter_1, antigrav, dbHud
                 local _, endSpeed = Kep(autopilotTargetPlanet):escapeAndOrbitalSpeed((worldPos-autopilotTargetPlanet.center):len()-autopilotTargetPlanet.radius)
                 
 
-                local targetVec--, targetAltitude, --horizontalDistance
+                local targetVec
                 if CustomTarget then
                     targetVec = CustomTarget.position - worldPos
                     --targetAltitude = planet:getAltitude(CustomTarget.position)
@@ -2090,7 +2196,7 @@ function APClass(Nav, c, u, atlas, vBooster, hover, telemeter_1, antigrav, dbHud
                     spaceLand = true             
                     finishAutopilot("Autopilot complete, commencing reentry")
                     AP.showWayPoint(autopilotTargetPlanet, AutopilotTargetCoords)
-                elseif ((CustomTarget and CustomTarget.planetname ~= "Space") or CustomTarget == nil) and orbit.periapsis ~= nil and orbit.periapsis.altitude > 0 and orbit.eccentricity < 1 or AutopilotStatus == "Circularizing" then
+                elseif (((CustomTarget and CustomTarget.planetname ~= "Space") or CustomTarget == nil) and orbit.periapsis ~= nil and orbit.periapsis.altitude > 0 and orbit.eccentricity < 1) or AutopilotStatus == "Circularizing" then
                     if AutopilotStatus ~= "Circularizing" then
                         play("apCir", "AP")
                         AutopilotStatus = "Circularizing"
@@ -2705,7 +2811,7 @@ function APClass(Nav, c, u, atlas, vBooster, hover, telemeter_1, antigrav, dbHud
                     elseif not skipLandingRate then
                         if StrongBrakes and (constructVelocity:normalize():dot(-up) < 0.999) then
                             BrakeIsOn = "BL Strong"
-                            AlignToWorldVector()
+                            AlignToWorldVector(-constructVelocity) -- Align retrograde for emergency braking
                         elseif absHspd > 10 or (absHspd > drift and apBrk) then
                             BrakeIsOn = "BL hSpd"
                         elseif vSpd < -brakeLandingRate then

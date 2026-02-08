@@ -398,7 +398,7 @@ function programClass(Nav, c, u, atlas, vBooster, hover, telemeter_1, antigrav, 
                 GearExtended = Nav.control.isAnyLandingGearDeployed() or not stablized or (abvGndDet ~=-1 and (abvGndDet - 3) < LandingGearGroundHeight)
                 -- Engage brake and extend Gear if either a hover detects something, or they're in space and moving very slowly
                 local slow = coreVelocity:len() < 30
-                if (abvGndDet ~= -1 and stabilzied) or ((not inAtmo or not stabilzied) and slow) then
+                if (abvGndDet ~= -1 and stablized) or ((not inAtmo or not stablized) and slow) then
                     BrakeIsOn = "Startup"
                 else
                     BrakeIsOn = false
