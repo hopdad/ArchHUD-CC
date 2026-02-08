@@ -39,6 +39,11 @@ function APClass(Nav, c, u, atlas, vBooster, hover, telemeter_1, antigrav, dbHud
     getDistanceDisplayString, FormatTimeString, SaveDataBank, jdecode, msg)
     local s = DUSystem
     local C = DUConstruct
+    local mcos = math.cos
+    local msin = math.sin
+    local mdeg = math.deg
+    local mrad = math.rad
+    local mpi = math.pi
 
     local ap = {}
     -- Local Functions and Variables for whole class
@@ -218,12 +223,12 @@ function APClass(Nav, c, u, atlas, vBooster, hover, telemeter_1, antigrav, dbHud
                 local longitude = 0
                 if not float_eq(distance, 0) then
                     local phi = atan(coords.y, coords.x)
-                    longitude = phi >= 0 and phi or (2 * math.pi + phi)
-                    latitude = math.pi / 2 - math.acos(coords.z / distance)
+                    longitude = phi >= 0 and phi or (2 * mpi + phi)
+                    latitude = mpi / 2 - math.acos(coords.z / distance)
                 end
                 return setmetatable({
-                    latitude = math.deg(latitude),
-                    longitude = math.deg(longitude),
+                    latitude = mdeg(latitude),
+                    longitude = mdeg(longitude),
                     altitude = altitude,
                     id = targetplanet.id,
                     systemId = targetplanet.systemId
@@ -1364,12 +1369,12 @@ function APClass(Nav, c, u, atlas, vBooster, hover, telemeter_1, antigrav, dbHud
         coreVelocity = vec3(C.getVelocity())
         worldPos = vec3(C.getWorldPosition())
         coreMass =  C.getMass() + shipsMass
-        velMag = vec3(constructVelocity):len()
+        velMag = constructVelocity:len()
         vSpd = -worldVertical:dot(constructVelocity)
         adjustedRoll = getRoll(worldVertical, constructForward, constructRight) 
-        local radianRoll = (adjustedRoll / 180) * math.pi
-        local corrX = math.cos(radianRoll)
-        local corrY = math.sin(radianRoll)
+        local radianRoll = (adjustedRoll / 180) * mpi
+        local corrX = mcos(radianRoll)
+        local corrY = msin(radianRoll)
         adjustedPitch = getPitch(worldVertical, constructForward, (constructRight * corrX) + (constructUp * corrY)) 
 
         local constructVelocityDir = constructVelocity:normalize()
@@ -1454,8 +1459,8 @@ function APClass(Nav, c, u, atlas, vBooster, hover, telemeter_1, antigrav, dbHud
         end
 
         local deltaTick = time - lastApTickTime
-        local currentYaw = -math.deg(signedRotationAngle(constructUp, constructVelocity, constructForward))
-        local currentPitch = math.deg(signedRotationAngle(constructRight, constructVelocity, constructForward)) -- Let's use a consistent func that uses global velocity
+        local currentYaw = -mdeg(signedRotationAngle(constructUp, constructVelocity, constructForward))
+        local currentPitch = mdeg(signedRotationAngle(constructRight, constructVelocity, constructForward)) -- Let's use a consistent func that uses global velocity
         local up = worldVertical * -1
 
         stalling = inAtmo and currentYaw < -YawStallAngle or currentYaw > YawStallAngle or currentPitch < -PitchStallAngle or currentPitch > PitchStallAngle
@@ -1560,7 +1565,7 @@ function APClass(Nav, c, u, atlas, vBooster, hover, telemeter_1, antigrav, dbHud
             if spaceLand then 
                 BrakeIsOn = false -- wtf how does this keep turning on, and why does it matter if we're in cruise?
                 local aligned, target = false, CustomTarget
-                if not target then target = vec3(constructVelocity) end
+                if not target then target = constructVelocity end
                 aligned = AlignToWorldVector(CustomTarget.position-worldPos,0.1) 
                 autoRoll = true
                 if aligned then
@@ -1580,7 +1585,7 @@ function APClass(Nav, c, u, atlas, vBooster, hover, telemeter_1, antigrav, dbHud
                     AP.cmdThrottle(1)  
                 end
             elseif velMag > minAutopilotSpeed then
-                AlignToWorldVector(vec3(constructVelocity),0.01) 
+                AlignToWorldVector(constructVelocity, 0.01) 
             end
         end
 
@@ -1588,7 +1593,7 @@ function APClass(Nav, c, u, atlas, vBooster, hover, telemeter_1, antigrav, dbHud
             if inAtmo then 
                 RetrogradeIsOn = false
             elseif velMag > minAutopilotSpeed then -- Help with div by 0 errors and careening into terrain at low speed
-                AlignToWorldVector(-(vec3(constructVelocity)))
+                AlignToWorldVector(-constructVelocity)
             end
         end
 
@@ -1974,7 +1979,7 @@ function APClass(Nav, c, u, atlas, vBooster, hover, telemeter_1, antigrav, dbHud
             end
             
             AutopilotDistance = (vec3(targetCoords) - worldPos):len()
-            local intersectBody, atmoDistance = AP.checkLOS(constructVelocity:normalize())
+            local intersectBody, atmoDistance = AP.checkLOS(constructVelocityDir)
 
             if atmoDistance ~= nil and atmoDistance < AutopilotDistance and intersectBody.name == autopilotTargetPlanet.name then
                 AutopilotDistance = atmoDistance -- If we're going to hit atmo before our target, use that distance instead.
@@ -1991,7 +1996,7 @@ function APClass(Nav, c, u, atlas, vBooster, hover, telemeter_1, antigrav, dbHud
 
             local projectedAltitude = (autopilotTargetPlanet.center -
                                         (worldPos +
-                                            (vec3(constructVelocity):normalize() * AutopilotDistance))):len() -
+                                            (constructVelocityDir * AutopilotDistance))):len() -
                                         autopilotTargetPlanet.radius
             local displayText = getDistanceDisplayString(projectedAltitude)
             sudi = widgetTrajectoryAltitudeText 
@@ -2009,8 +2014,8 @@ function APClass(Nav, c, u, atlas, vBooster, hover, telemeter_1, antigrav, dbHud
                 -- Use signedRotationAngle to get the yaw and pitch angles with shipUp and shipRight as the normals, respectively
                 -- Then use a PID
                 local targetVec = (vec3(targetCoords) - worldPos)
-                local targetYaw = uclamp(math.deg(signedRotationAngle(constructUp, constructVelocity:normalize(), targetVec:normalize()))*(velMag/500),-90,90)
-                local targetPitch = uclamp(math.deg(signedRotationAngle(constructRight, constructVelocity:normalize(), targetVec:normalize()))*(velMag/500),-90,90)
+                local targetYaw = uclamp(mdeg(signedRotationAngle(constructUp, constructVelocityDir, targetVec:normalize()))*(velMag/500),-90,90)
+                local targetPitch = uclamp(mdeg(signedRotationAngle(constructRight, constructVelocityDir, targetVec:normalize()))*(velMag/500),-90,90)
 
             
                 -- If they're both very small, scale them both up a lot to converge that last bit
@@ -2025,8 +2030,8 @@ function APClass(Nav, c, u, atlas, vBooster, hover, telemeter_1, antigrav, dbHud
                 end
 
                 -- We'll do our own currentYaw and Pitch
-                local currentYaw = -math.deg(signedRotationAngle(constructUp, constructForward, constructVelocity:normalize()))
-                local currentPitch = -math.deg(signedRotationAngle(constructRight, constructForward, constructVelocity:normalize()))
+                local currentYaw = -mdeg(signedRotationAngle(constructUp, constructForward, constructVelocityDir))
+                local currentPitch = -mdeg(signedRotationAngle(constructRight, constructForward, constructVelocityDir))
 
                 apPitchPID:inject(targetPitch - currentPitch)
                 local autoPitchInput = uclamp(apPitchPID:get(),-1,1)
@@ -2093,7 +2098,7 @@ function APClass(Nav, c, u, atlas, vBooster, hover, telemeter_1, antigrav, dbHud
                 if not AutopilotCruising and not AutopilotBraking and not skipAlign then
                     aligned = AlignToWorldVector((targetCoords - worldPos):normalize())
                 elseif TurnBurn and (AutopilotBraking or AutopilotCruising) then
-                    aligned = AlignToWorldVector(-vec3(constructVelocity):normalize())
+                    aligned = AlignToWorldVector(-constructVelocityDir)
                 end
             end
             if AutopilotAccelerating then
@@ -2111,7 +2116,7 @@ function APClass(Nav, c, u, atlas, vBooster, hover, telemeter_1, antigrav, dbHud
                 -- We need the travel time, the one we compute elsewhere includes estimates on acceleration
                 -- Also it doesn't account for velocity not being in the correct direction, this should
                 local timeUntilBrake = 99999 -- Default in case accel and velocity are both 0 
-                local accel = -(vec3(C.getWorldAcceleration()):dot(constructVelocity:normalize()))
+                local accel = -(vec3(C.getWorldAcceleration()):dot(constructVelocityDir))
                 local velAlongTarget = uclamp(constructVelocity:dot((targetCoords - worldPos):normalize()),0,velMag)
                 if velAlongTarget > 0 or accel > 0 then -- (otherwise divide by 0 errors)
                     timeUntilBrake = Kinematic.computeTravelTime(velAlongTarget, accel, AutopilotDistance-brakeDistance)
@@ -2393,7 +2398,7 @@ function APClass(Nav, c, u, atlas, vBooster, hover, telemeter_1, antigrav, dbHud
             local targetPitch = (utils.smoothstep(altDiff, -minmax, minmax) - 0.5) * 2 * MaxPitch * velMultiplier
 
                         -- not inAtmo and
-            if not Reentry and not spaceLand and not VectorToTarget and constructForward:dot(constructVelocity:normalize()) < 0.99 then
+            if not Reentry and not spaceLand and not VectorToTarget and constructForward:dot(constructVelocityDir) < 0.99 then
                 -- Widen it up and go much harder based on atmo level if we're exiting atmo and velocity is keeping up with the nose
                 -- I.e. we have a lot of power and need to really get out of atmo with that power instead of feeding it to speed
                 -- Scaled in a way that no change up to 10% atmo, then from 10% to 0% scales to *20 and *2
@@ -2423,7 +2428,7 @@ function APClass(Nav, c, u, atlas, vBooster, hover, telemeter_1, antigrav, dbHud
                 local freeFallHeight = coreAltitude > (planet.noAtmosphericDensityAltitude + brakeDistancer*1.35)
                 if freeFallHeight then
                     targetPitch = ReEntryPitch
-                    if velMag <= ReentrySpeed/3.6 and velMag > (ReentrySpeed/3.6)-10 and mabs(constructVelocity:normalize():dot(constructForward)) > 0.9 and not throttleMode then
+                    if velMag <= ReentrySpeed/3.6 and velMag > (ReentrySpeed/3.6)-10 and mabs(constructVelocityDir:dot(constructForward)) > 0.9 and not throttleMode then
                         WasInCruise = false
                         AP.cmdThrottle(1)  
                     end
@@ -2469,7 +2474,7 @@ function APClass(Nav, c, u, atlas, vBooster, hover, telemeter_1, antigrav, dbHud
                 end
             end
             if velMag > minAutopilotSpeed and not spaceLaunch and not VectorToTarget and not BrakeLanding and ForceAlignment then -- When do we even need this, just alt hold? lol
-                AlignToWorldVector(vec3(constructVelocity))
+                AlignToWorldVector(constructVelocity)
             end
             if ReversalIsOn or ((VectorToTarget or spaceLaunch) and AutopilotTargetIndex > 0 and inAtmo) then
                 local targetVec
@@ -2489,8 +2494,8 @@ function APClass(Nav, c, u, atlas, vBooster, hover, telemeter_1, antigrav, dbHud
                     targetVec = autopilotTargetPlanet.center - worldPos
                 end
 
-                local targetYaw = math.deg(signedRotationAngle(worldVertical:normalize(),constructVelocity,targetVec))*2
-                local rollRad = math.rad(mabs(adjustedRoll))
+                local targetYaw = mdeg(signedRotationAngle(worldVertical:normalize(),constructVelocity,targetVec))*2
+                local rollRad = mrad(mabs(adjustedRoll))
                 if velMag > minRollVelocity and inAtmo then
                     local rollminmax = 1000+velMag -- Roll should taper off within 1km instead of 100m because it's aggressive
                     -- And should also very aggressively use vspd so it can counteract high rates of ascent/descent
@@ -2500,7 +2505,7 @@ function APClass(Nav, c, u, atlas, vBooster, hover, telemeter_1, antigrav, dbHud
                     targetRoll = uclamp(targetYaw*2, -maxRoll, maxRoll)
                     local origTargetYaw = targetYaw
                     -- 4x weight to pitch consideration because yaw is often very weak compared and the pid needs help?
-                    targetYaw = uclamp(uclamp(targetYaw,-YawStallAngle*0.80,YawStallAngle*0.80)*math.cos(rollRad) + 4*(adjustedPitch-targetPitch)*math.sin(math.rad(adjustedRoll)),-YawStallAngle*0.80,YawStallAngle*0.80) -- We don't want any yaw if we're rolled
+                    targetYaw = uclamp(uclamp(targetYaw,-YawStallAngle*0.80,YawStallAngle*0.80)*mcos(rollRad) + 4*(adjustedPitch-targetPitch)*msin(mrad(adjustedRoll)),-YawStallAngle*0.80,YawStallAngle*0.80) -- We don't want any yaw if we're rolled
                     -- While this already should only pitch based on current roll, it still pitches early, resulting in altitude increase before the roll kicks in
                     -- I should adjust the first part so that when rollRad is relatively far from targetRoll, it is lower
                     local rollMatchMult = 1
@@ -2520,7 +2525,7 @@ function APClass(Nav, c, u, atlas, vBooster, hover, telemeter_1, antigrav, dbHud
                     -- Like the rollRad or something is dependent on velocity vector.  It also immediately rolled upside down... 
                     local rollPitch = targetPitch
                     if mabs(adjustedRoll) > 90 then rollPitch = -rollPitch end
-                    targetPitch = rollMatchMult*uclamp(uclamp(rollPitch*math.cos(rollRad),-PitchStallAngle*0.8,PitchStallAngle*0.8) + mabs(uclamp(mabs(origTargetYaw)*math.sin(rollRad),-PitchStallAngle*0.80,PitchStallAngle*0.80)),-PitchStallAngle*0.80,PitchStallAngle*0.80) -- Always yaw positive 
+                    targetPitch = rollMatchMult*uclamp(uclamp(rollPitch*mcos(rollRad),-PitchStallAngle*0.8,PitchStallAngle*0.8) + mabs(uclamp(mabs(origTargetYaw)*msin(rollRad),-PitchStallAngle*0.80,PitchStallAngle*0.80)),-PitchStallAngle*0.80,PitchStallAngle*0.80) -- Always yaw positive 
                     -- And also it seems pitch might be backwards when we roll upside down...
 
                     -- But things were working great with just the rollMatchMult and vSpd*10
@@ -2789,7 +2794,7 @@ function APClass(Nav, c, u, atlas, vBooster, hover, telemeter_1, antigrav, dbHud
                                 eLL = true
                                 navCom:setTargetGroundAltitude(LandingGearGroundHeight)
                             end
-                            if (velMag < 1 or constructVelocity:normalize():dot(worldVertical) < 0) and not alignHeading and groundDistance-3 < LandingGearGroundHeight and 
+                            if (velMag < 1 or constructVelocityDir:dot(worldVertical) < 0) and not alignHeading and groundDistance-3 < LandingGearGroundHeight and 
                                 (stablized or velMag == 0) then -- Or if they start going back up
                                 BrakeLanding = false
                                 AltitudeHold = false
@@ -2809,7 +2814,7 @@ function APClass(Nav, c, u, atlas, vBooster, hover, telemeter_1, antigrav, dbHud
                                 end
                             end
                     elseif not skipLandingRate then
-                        if StrongBrakes and (constructVelocity:normalize():dot(-up) < 0.999) then
+                        if StrongBrakes and (constructVelocityDir:dot(-up) < 0.999) then
                             BrakeIsOn = "BL Strong"
                             AlignToWorldVector(-constructVelocity) -- Align retrograde for emergency braking
                         elseif absHspd > 10 or (absHspd > drift and apBrk) then
@@ -2882,8 +2887,8 @@ function APClass(Nav, c, u, atlas, vBooster, hover, telemeter_1, antigrav, dbHud
             local pitchToUse = adjustedPitch
 
             if (VectorToTarget or spaceLaunch or ReversalIsOn) and not onGround and velMag > minRollVelocity and inAtmo then
-                local rollRad = math.rad(mabs(adjustedRoll))
-                pitchToUse = adjustedPitch*mabs(math.cos(rollRad))+currentPitch*math.sin(rollRad)
+                local rollRad = mrad(mabs(adjustedRoll))
+                pitchToUse = adjustedPitch*mabs(mcos(rollRad))+currentPitch*msin(rollRad)
             end
             -- TODO: These clamps need to be related to roll and YawStallAngle, we may be dealing with yaw?
             local pitchDiff = uclamp(targetPitch-pitchToUse, -PitchStallAngle*0.80, PitchStallAngle*0.80)

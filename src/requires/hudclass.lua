@@ -111,13 +111,13 @@ function HudClass(Nav, c, u, s, atlas, antigrav, hover, shield, warpdrive, weapo
 
             if nearPlanet and ((altitude < 200000 and not inAtmo) or (altitude and inAtmo)) then
                 newContent[#newContent + 1] = svgText(rectX+rectW, rectY-10, stringf("%s",planet.name), "pdim altsm txtend")
-                table.insert(newContent, stringf([[
-                    <g class="pdim">                        
-                        <rect class="line" x="%d" y="%d" width="%d" height="%d"/> 
+                newContent[#newContent + 1] = stringf([[
+                    <g class="pdim">
+                        <rect class="line" x="%d" y="%d" width="%d" height="%d"/>
                         <clipPath id="alt"><rect class="line" x="%d" y="%d" width="%d" height="%d"/></clipPath>
-                        <g clip-path="url(#alt)">]], 
+                        <g clip-path="url(#alt)">]],
                         rectX - 1, rectY - 4, rectW + 2, rectH + 6,
-                        rectX + 1, rectY - 1, rectW - 4, rectH))
+                        rectX + 1, rectY - 1, rectW - 4, rectH)
                 local index = 0
                 local divisor = 1
                 local forwardFract = 0
@@ -187,7 +187,7 @@ function HudClass(Nav, c, u, s, atlas, antigrav, hover, shield, warpdrive, weapo
                         forwardFract = 0
                     end
                 end
-                table.insert(newContent, [[</g></g>]])
+                newContent[#newContent + 1] = [[</g></g>]]
             end
         end
 
@@ -233,25 +233,14 @@ function HudClass(Nav, c, u, s, atlas, antigrav, hover, shield, warpdrive, weapo
         
                 local distance = msqrt((dx)^2 + (dy)^2)
         
-                local progradeDot = [[<circle
-                cx="]] .. x .. [["
-                cy="]] .. y .. [["
-                r="]] .. dotRadius/dotSize .. [["
-                style="fill:#d7fe00;stroke:none;fill-opacity:1"/>
-            <circle
-                cx="]] .. x .. [["
-                cy="]] .. y .. [["
-                r="]] .. dotRadius .. [["
-                style="stroke:#d7fe00;stroke-opacity:1;fill:none" />
-            <path
-                d="M ]] .. x-dotSize .. [[,]] .. y .. [[ h ]] .. dotRadius .. [["
-                style="stroke:#d7fe00;stroke-opacity:1" />
-            <path
-                d="M ]] .. x+dotRadius .. [[,]] .. y .. [[ h ]] .. dotRadius .. [["
-                style="stroke:#d7fe00;stroke-opacity:1" />
-            <path
-                d="M ]] .. x .. [[,]] .. y-dotSize .. [[ v ]] .. dotRadius .. [["
-                style="stroke:#d7fe00;stroke-opacity:1" />]]
+                local progradeDot = stringf([[<circle cx="%f" cy="%f" r="%f" style="fill:#d7fe00;stroke:none;fill-opacity:1"/>
+            <circle cx="%f" cy="%f" r="%f" style="stroke:#d7fe00;stroke-opacity:1;fill:none" />
+            <path d="M %f,%f h %f" style="stroke:#d7fe00;stroke-opacity:1" />
+            <path d="M %f,%f h %f" style="stroke:#d7fe00;stroke-opacity:1" />
+            <path d="M %f,%f v %f" style="stroke:#d7fe00;stroke-opacity:1" />]],
+                    x, y, dotRadius/dotSize, x, y, dotRadius,
+                    x-dotSize, y, dotRadius, x+dotRadius, y, dotRadius,
+                    x, y-dotSize, dotRadius)
                     
                 if distance < horizonRadius then
                     newContent[#newContent + 1] = progradeDot
@@ -290,27 +279,14 @@ function HudClass(Nav, c, u, s, atlas, antigrav, hover, shield, warpdrive, weapo
                     -- Retrograde Dot
                     
                     if distance < horizonRadius then
-                        local retrogradeDot = [[<circle
-                        cx="]] .. x .. [["
-                        cy="]] .. y .. [["
-                        r="]] .. dotRadius .. [["
-                        style="stroke:#d7fe00;stroke-opacity:1;fill:none" />
-                    <path
-                        d="M ]] .. x .. [[,]] .. y-dotSize .. [[ v ]] .. dotRadius .. [["
-                        style="stroke:#d7fe00;stroke-opacity:1" id="l"/>
-                    <use
-                        xlink:href="#l"
-                        transform="rotate(120,]] .. x .. [[,]] .. y .. [[)" />
-                    <use
-                        xlink:href="#l"
-                        transform="rotate(-120,]] .. x .. [[,]] .. y .. [[)" />
-                    <path
-                        d="M ]] .. x-dotRadius .. [[,]] .. y .. [[ h ]] .. dotSize .. [["
-                        style="stroke-width:0.5;stroke:#d7fe00;stroke-opacity:1"
-                        transform="rotate(-45,]] .. x .. [[,]] .. y .. [[)" id="c"/>
-                    <use
-                        xlink:href="#c"
-                        transform="rotate(-90,]] .. x .. [[,]] .. y .. [[)"/>]]
+                        local retrogradeDot = stringf([[<circle cx="%f" cy="%f" r="%f" style="stroke:#d7fe00;stroke-opacity:1;fill:none" />
+                    <path d="M %f,%f v %f" style="stroke:#d7fe00;stroke-opacity:1" id="l"/>
+                    <use xlink:href="#l" transform="rotate(120,%f,%f)" />
+                    <use xlink:href="#l" transform="rotate(-120,%f,%f)" />
+                    <path d="M %f,%f h %f" style="stroke-width:0.5;stroke:#d7fe00;stroke-opacity:1" transform="rotate(-45,%f,%f)" id="c"/>
+                    <use xlink:href="#c" transform="rotate(-90,%f,%f)"/>]],
+                            x, y, dotRadius, x, y-dotSize, dotRadius,
+                            x, y, x, y, x-dotRadius, y, dotSize, x, y, x, y)
                         newContent[#newContent + 1] = retrogradeDot
                         -- Draw a dot or whatever at x,y, it's inside the AH
                     end -- Don't draw an arrow for this one, only prograde is that important
@@ -383,9 +359,10 @@ function HudClass(Nav, c, u, s, atlas, antigrav, hover, shield, warpdrive, weapo
             newContent[#newContent + 1] = svgText( x1, ys, mfloor(spd).." km/h" , "pbright txtbig txtstart")
         end
         local ecuBlink = 40
+        local cachedVersionText = svgText(crx(150), cry(1070), stringf("ARCH Hud Version: %.3f", VERSION_NUMBER), "hudver")
         local function DrawWarnings(newContent)
 
-            newContent[#newContent + 1] = svgText(crx(150), cry(1070), stringf("ARCH Hud Version: %.3f", VERSION_NUMBER), "hudver")
+            newContent[#newContent + 1] = cachedVersionText
             newContent[#newContent + 1] = [[<g class="warnings">]]
             if u.isMouseControlActivated() then
                 newContent[#newContent + 1] = svgText(crx(960), cry(550), "Warning: Invalid Control Scheme Detected", "warnings")
@@ -1164,26 +1141,14 @@ function HudClass(Nav, c, u, s, atlas, antigrav, hover, shield, warpdrive, weapo
                     local y = orbitMidY + (yAngle/fov)*orbitMapHeight
                     local dotSize = 14
                     local dotRadius = dotSize/2
-                    -- TODO: stringf
-                    local progradeDot = [[<circle
-                        cx="]] .. x .. [["
-                        cy="]] .. y .. [["
-                        r="]] .. dotRadius/dotSize .. [["
-                        style="fill:#d7fe00;stroke:none;fill-opacity:1"/>
-                    <circle
-                        cx="]] .. x .. [["
-                        cy="]] .. y .. [["
-                        r="]] .. dotRadius .. [["
-                        style="stroke:#d7fe00;stroke-opacity:1;fill:none" />
-                    <path
-                        d="M ]] .. x-dotSize .. [[,]] .. y .. [[ h ]] .. dotRadius .. [["
-                        style="stroke:#d7fe00;stroke-opacity:1" />
-                    <path
-                        d="M ]] .. x+dotRadius .. [[,]] .. y .. [[ h ]] .. dotRadius .. [["
-                        style="stroke:#d7fe00;stroke-opacity:1" />
-                    <path
-                        d="M ]] .. x .. [[,]] .. y-dotSize .. [[ v ]] .. dotRadius .. [["
-                        style="stroke:#d7fe00;stroke-opacity:1" />]]
+                    local progradeDot = stringf([[<circle cx="%f" cy="%f" r="%f" style="fill:#d7fe00;stroke:none;fill-opacity:1"/>
+                    <circle cx="%f" cy="%f" r="%f" style="stroke:#d7fe00;stroke-opacity:1;fill:none" />
+                    <path d="M %f,%f h %f" style="stroke:#d7fe00;stroke-opacity:1" />
+                    <path d="M %f,%f h %f" style="stroke:#d7fe00;stroke-opacity:1" />
+                    <path d="M %f,%f v %f" style="stroke:#d7fe00;stroke-opacity:1" />]],
+                            x, y, dotRadius/dotSize, x, y, dotRadius,
+                            x-dotSize, y, dotRadius, x+dotRadius, y, dotRadius,
+                            x, y-dotSize, dotRadius)
                     newContent[#newContent + 1] = progradeDot
                 end
                 --Add a + to mark the center
@@ -1674,9 +1639,11 @@ function HudClass(Nav, c, u, s, atlas, antigrav, hover, shield, warpdrive, weapo
             if horizonRadius > 0 then
                 local pitchC = mfloor(originalPitch)
                 local len = 0
-                local tickerPath = stringf([[<path transform="rotate(%f,%d,%d)" class="dim line" d="]], (-1 * originalRoll), centerX, centerY)
-                if not inAtmo then
-                    tickerPath = stringf([[<path transform="rotate(0,%d,%d)" class="dim line" d="]], centerX, centerY)
+                local pathParts = {}
+                if inAtmo then
+                    pathParts[1] = stringf([[<path transform="rotate(%f,%d,%d)" class="dim line" d="]], (-1 * originalRoll), centerX, centerY)
+                else
+                    pathParts[1] = stringf([[<path transform="rotate(0,%d,%d)" class="dim line" d="]], centerX, centerY)
                 end
                 newContent[#newContent + 1] = stringf([[<clipPath id="cut"><circle r="%f" cx="%d" cy="%d"/></clipPath>]],(horizonRadius - 1), centerX, centerY)
                 newContent[#newContent + 1] = [[<g class="dim txttick" clip-path="url(#cut)">]]
@@ -1688,25 +1655,26 @@ function HudClass(Nav, c, u, s, atlas, antigrav, hover, shield, warpdrive, weapo
                     end
                     local y = centerY + (-i * 5 + originalPitch * 5)
                     if len == 30 then
-                        tickerPath = stringf([[%s M %d %f h %d]], tickerPath, centerX-pitchX-len, y, len)
+                        pathParts[#pathParts + 1] = stringf([[ M %d %f h %d]], centerX-pitchX-len, y, len)
                         if inAtmo then
                             newContent[#newContent + 1] = stringf([[<g path transform="rotate(%f,%d,%d)" class="pdim txt txtmid"><text x="%d" y="%f">%d</text></g>]],(-1 * originalRoll), centerX, centerY, centerX-pitchX+10, y+4, i)
                             newContent[#newContent + 1] = stringf([[<g path transform="rotate(%f,%d,%d)" class="pdim txt txtmid"><text x="%d" y="%f">%d</text></g>]],(-1 * originalRoll), centerX, centerY, centerX+pitchX-10, y+4, i)
-                            if i == 0 or i == 180 or i == -180 then 
+                            if i == 0 or i == 180 or i == -180 then
                                 newContent[#newContent + 1] = stringf([[<path transform="rotate(%f,%d,%d)" d="m %d,%f %d,0" stroke-width="1" style="fill:none;stroke:#F5B800;" />]],
                                     (-1 * originalRoll), centerX, centerY, centerX-pitchX+20, y, pitchX*2-40)
                             end
                         else
                             newContent[#newContent + 1] = svgText(centerX-pitchX+10, y, i, "pdim txt txtmid")
                             newContent[#newContent + 1] = svgText(centerX+pitchX-10, y, i , "pdim txt txtmid")
-                        end                            
-                        tickerPath = stringf([[%s M %d %f h %d]], tickerPath, centerX+pitchX, y, len)
+                        end
+                        pathParts[#pathParts + 1] = stringf([[ M %d %f h %d]], centerX+pitchX, y, len)
                     else
-                        tickerPath = stringf([[%s M %d %f h %d]], tickerPath, centerX-pitchX-len, y, len)
-                        tickerPath = stringf([[%s M %d %f h %d]], tickerPath, centerX+pitchX, y, len)
+                        pathParts[#pathParts + 1] = stringf([[ M %d %f h %d]], centerX-pitchX-len, y, len)
+                        pathParts[#pathParts + 1] = stringf([[ M %d %f h %d]], centerX+pitchX, y, len)
                     end
                 end
-                newContent[#newContent + 1] = tickerPath .. [["/>]]
+                pathParts[#pathParts + 1] = [["/>]]
+                newContent[#newContent + 1] = table.concat(pathParts)
                 local pitchstring = "PITCH"                
                 if not nearPlanet then 
                     pitchstring = "REL PITCH"
@@ -1802,17 +1770,17 @@ function HudClass(Nav, c, u, s, atlas, antigrav, hover, shield, warpdrive, weapo
                 yawy = cry(130)
                 yawx = crx(960)
             end
-            local tickerPath = [[<path class="txttick line" d="]]
+            local yawParts = {[[<path class="txttick line" d="]]}
             local degRange = mfloor(yawC - (range+10) - yawC % 5 + 0.5)
             for i = degRange+70, degRange, -5 do
                 local x = yawx - (-i * 5 + yaw * 5)
                 if (i % 10 == 0) then
                     yawlen = 10
                     local num = i
-                    if num == 360 then 
+                    if num == 360 then
                         num = 0
-                    elseif num  > 360 then  
-                        num = num - 360 
+                    elseif num  > 360 then
+                        num = num - 360
                     elseif num < 0 then
                         num = num + 360
                     end
@@ -1821,12 +1789,13 @@ function HudClass(Nav, c, u, s, atlas, antigrav, hover, shield, warpdrive, weapo
                     yawlen = 5
                 end
                 if yawlen == 10 then
-                    tickerPath = stringf([[%s M %f %f v %d]], tickerPath, x, yawy-5, yawlen)
+                    yawParts[#yawParts + 1] = stringf([[ M %f %f v %d]], x, yawy-5, yawlen)
                 else
-                    tickerPath = stringf([[%s M %f %f v %d]], tickerPath, x, yawy-2.5, yawlen)
+                    yawParts[#yawParts + 1] = stringf([[ M %f %f v %d]], x, yawy-2.5, yawlen)
                 end
             end
-            newContent[#newContent + 1] = tickerPath .. [["/>]]
+            yawParts[#yawParts + 1] = [["/>]]
+            newContent[#newContent + 1] = table.concat(yawParts)
             newContent[#newContent + 1] = stringf([[<polygon class="bright" points="%d,%d %d,%d %d,%d"/>]],
                 yawx-5, yawy-20, yawx+5, yawy-20, yawx, yawy-10)
             --if DisplayOdometer then 
@@ -2034,6 +2003,9 @@ function HudClass(Nav, c, u, s, atlas, antigrav, hover, shield, warpdrive, weapo
                     end
                 end
             end
+            local cachedPrologue = nil
+            local cachedProloguePvP = nil
+            local cachedPrologueFreeLook = nil
             local function HUDPrologue(newContent)
                 if not notPvPZone then -- misnamed variable, fix later
                     PrimaryR = PvPR
@@ -2045,25 +2017,31 @@ function HudClass(Nav, c, u, s, atlas, antigrav, hover, shield, warpdrive, weapo
                     PrimaryB = SafeB
                 end
                 rgb = [[rgb(]] .. mfloor(PrimaryR + 0.6) .. "," .. mfloor(PrimaryG + 0.6) .. "," .. mfloor(PrimaryB + 0.6) .. [[)]]
-                rgbdim = [[rgb(]] .. mfloor(PrimaryR * 0.8 + 0.5) .. "," .. mfloor(PrimaryG * 0.8 + 0.5) .. "," ..   mfloor(PrimaryB * 0.8 + 0.5) .. [[)]]    
-                local bright = rgb
-                local dim = rgbdim
-                local dimmer = [[rgb(]] .. mfloor(PrimaryR * 0.4 + 0.5) .. "," .. mfloor(PrimaryG * 0.4 + 0.5) .. "," ..   mfloor(PrimaryB * 0.4 + 0.5) .. [[)]]   
-                local brightOrig = rgb
-                local dimOrig = rgbdim
-                local dimmerOrig = dimmer
-                if IsInFreeLook() and not brightHud then
-                    bright = [[rgb(]] .. mfloor(PrimaryR * 0.5 + 0.5) .. "," .. mfloor(PrimaryG * 0.5 + 0.5) .. "," ..
-                                mfloor(PrimaryB * 0.5 + 0.5) .. [[)]]
-                    dim = [[rgb(]] .. mfloor(PrimaryR * 0.3 + 0.5) .. "," .. mfloor(PrimaryG * 0.3 + 0.5) .. "," ..
-                            mfloor(PrimaryB * 0.2 + 0.5) .. [[)]]
-                    dimmer = [[rgb(]] .. mfloor(PrimaryR * 0.2 + 0.5) .. "," .. mfloor(PrimaryG * 0.2 + 0.5) .. "," ..   mfloor(PrimaryB * 0.2 + 0.5) .. [[)]]                        
-                end
-        
-                -- When applying styles, apply color first, then type (e.g. "bright line")
-                -- so that "fill:none" gets applied
+                rgbdim = [[rgb(]] .. mfloor(PrimaryR * 0.8 + 0.5) .. "," .. mfloor(PrimaryG * 0.8 + 0.5) .. "," ..   mfloor(PrimaryB * 0.8 + 0.5) .. [[)]]
+                local isFreeLook = IsInFreeLook() and not brightHud
+                -- Only rebuild the massive CSS string when PvP zone or freelook state changes
+                if cachedPrologue == nil or cachedProloguePvP ~= notPvPZone or cachedPrologueFreeLook ~= isFreeLook then
+                    local bright = rgb
+                    local dim = rgbdim
+                    local dimmer = [[rgb(]] .. mfloor(PrimaryR * 0.4 + 0.5) .. "," .. mfloor(PrimaryG * 0.4 + 0.5) .. "," ..   mfloor(PrimaryB * 0.4 + 0.5) .. [[)]]
+                    local brightOrig = rgb
+                    local dimOrig = rgbdim
+                    local dimmerOrig = dimmer
+                    if isFreeLook then
+                        bright = [[rgb(]] .. mfloor(PrimaryR * 0.5 + 0.5) .. "," .. mfloor(PrimaryG * 0.5 + 0.5) .. "," ..
+                                    mfloor(PrimaryB * 0.5 + 0.5) .. [[)]]
+                        dim = [[rgb(]] .. mfloor(PrimaryR * 0.3 + 0.5) .. "," .. mfloor(PrimaryG * 0.3 + 0.5) .. "," ..
+                                mfloor(PrimaryB * 0.2 + 0.5) .. [[)]]
+                        dimmer = [[rgb(]] .. mfloor(PrimaryR * 0.2 + 0.5) .. "," .. mfloor(PrimaryG * 0.2 + 0.5) .. "," ..   mfloor(PrimaryB * 0.2 + 0.5) .. [[)]]
+                    end
 
-                    newContent[#newContent + 1] = stringf([[ <head> <style>body{margin: 0}svg{position:absolute;top:0;left:0;font-family:Montserrat;}.txt{font-size:10px;font-weight:bold;}.txttick{font-size:12px;font-weight:bold;}.txtbig{font-size:14px;font-weight:bold;}.altsm{font-size:16px;font-weight:normal;}.altbig{font-size:21px;font-weight:normal;}.line{stroke-width:2px;fill:none;stroke:%s}.linethick{stroke-width:3px;fill:none}.linethin{stroke-width:1px;fill:none}.warnings{font-size:26px;fill:red;text-anchor:middle;font-family:Bank;}.warn{fill:orange; font-size:24px}.crit{fill:darkred;font-size:28px}.bright{fill:%s;stroke:%s}text.bright{stroke:black; stroke-width:10px;paint-order:stroke;}.pbright{fill:%s;stroke:%s}text.pbright{stroke:black; stroke-width:10px;paint-order:stroke;}.dim{fill:%s;stroke:%s}text.dim{stroke:black; stroke-width:10px;paint-order:stroke;}.pdim{fill:%s;stroke:%s}text.pdim{stroke:black; stroke-width:10px;paint-order:stroke;}.red{fill:red;stroke:red}text.red{stroke:black; stroke-width:10px;paint-order:stroke;}.orange{fill:orange;stroke:orange}text.orange{stroke:black; stroke-width:10px;paint-order:stroke;}.redout{fill:none;stroke:red}.op30{opacity:0.3}.op10{opacity:0.1}.txtstart{text-anchor:start}.txtend{text-anchor:end}.txtmid{text-anchor:middle}.txtvspd{font-family:sans-serif;font-weight:normal}.txtvspdval{font-size:20px}.txtfuel{font-size:11px;font-weight:bold}.txtorb{font-size:12px}.txtorbbig{font-size:18px}.hudver{font-size:10px;font-weight:bold;fill:red;text-anchor:end;font-family:Bank}.msg{font-size:40px;fill:red;text-anchor:middle;font-weight:normal}.cursor{stroke:white}text{stroke:black; stroke-width:10px;paint-order:stroke;}.dimstroke{stroke:%s}.brightstroke{stroke:%s}.indicatorText{font-size:20px;fill:white}.size14{font-size:14px}.size20{font-size:20px}.topButton{fill:%s;opacity:0.5;stroke-width:2;stroke:%s}.topButtonActive{fill:url(#RadialGradientCenter);opacity:0.8;stroke-width:2;stroke:%s}.topButton text{font-size:13px; fill: %s; opacity:1; stroke-width:20px}.topButtonActive text{font-size:13px;fill:%s; stroke-width:0px; opacity:1}.indicatorFont{font-size:20px;font-family:Bank}.dimmer{stroke: %s;}.pdimfill{fill: %s;}.dimfill{fill: %s;}</style> </head> <body> <svg height="100%%" width="100%%" viewBox="0 0 %d %d"> <defs> <radialGradient id="RadialGradientCenterTop" cx="0.5" cy="0" r="1"> <stop offset="0%%" stop-color="%s" stop-opacity="0.5"/> <stop offset="100%%" stop-color="black" stop-opacity="0"/> </radialGradient> <radialGradient id="RadialGradientRightTop" cx="1" cy="0" r="1"> <stop offset="0%%" stop-color="%s" stop-opacity="0.5"/> <stop offset="200%%" stop-color="black" stop-opacity="0"/> </radialGradient> <radialGradient id="ThinRightTopGradient" cx="1" cy="0" r="1"> <stop offset="0%%" stop-color="%s" stop-opacity="0.2"/> <stop offset="200%%" stop-color="black" stop-opacity="0"/> </radialGradient> <radialGradient id="RadialGradientLeftTop" cx="0" cy="0" r="1"> <stop offset="0%%" stop-color="%s" stop-opacity="0.5"/> <stop offset="200%%" stop-color="black" stop-opacity="0"/> </radialGradient> <radialGradient id="ThinLeftTopGradient" cx="0" cy="0" r="1"> <stop offset="0%%" stop-color="%s" stop-opacity="0.2"/> <stop offset="200%%" stop-color="black" stop-opacity="0"/> </radialGradient> <radialGradient id="RadialGradientCenter" cx="0.5" cy="0.5" r="1"> <stop offset="0%%" stop-color="%s" stop-opacity="0.8"/> <stop offset="100%%" stop-color="%s" stop-opacity="0.5"/> </radialGradient> <radialGradient id="RadialPlanetCenter" cx="0.5" cy="0.5" r="0.5"> <stop offset="0%%" stop-color="%s" stop-opacity="1"/> <stop offset="100%%" stop-color="%s" stop-opacity="1"/> </radialGradient> <radialGradient id="RadialAtmo" cx="0.5" cy="0.5" r="0.5"> <stop offset="0%%" stop-color="%s" stop-opacity="1"/> <stop offset="66%%" stop-color="%s" stop-opacity="1"/> <stop offset="100%%" stop-color="%s" stop-opacity="0.1"/> </radialGradient> </defs> <g class="pdim txt txtend">]], bright, bright, bright, brightOrig, brightOrig, dim, dim, dimOrig, dimOrig,dim,bright,dimmer,dimOrig,bright,bright,dimmer,dimmer, dimmerOrig,dimmer, ResolutionX, ResolutionY, dim,dim,dim,dim,dim,brightOrig,dim,dimOrig, dimmerOrig, dimOrig, dimOrig, dimmerOrig)
+                    -- When applying styles, apply color first, then type (e.g. "bright line")
+                    -- so that "fill:none" gets applied
+                    cachedPrologue = stringf([[ <head> <style>body{margin: 0}svg{position:absolute;top:0;left:0;font-family:Montserrat;}.txt{font-size:10px;font-weight:bold;}.txttick{font-size:12px;font-weight:bold;}.txtbig{font-size:14px;font-weight:bold;}.altsm{font-size:16px;font-weight:normal;}.altbig{font-size:21px;font-weight:normal;}.line{stroke-width:2px;fill:none;stroke:%s}.linethick{stroke-width:3px;fill:none}.linethin{stroke-width:1px;fill:none}.warnings{font-size:26px;fill:red;text-anchor:middle;font-family:Bank;}.warn{fill:orange; font-size:24px}.crit{fill:darkred;font-size:28px}.bright{fill:%s;stroke:%s}text.bright{stroke:black; stroke-width:10px;paint-order:stroke;}.pbright{fill:%s;stroke:%s}text.pbright{stroke:black; stroke-width:10px;paint-order:stroke;}.dim{fill:%s;stroke:%s}text.dim{stroke:black; stroke-width:10px;paint-order:stroke;}.pdim{fill:%s;stroke:%s}text.pdim{stroke:black; stroke-width:10px;paint-order:stroke;}.red{fill:red;stroke:red}text.red{stroke:black; stroke-width:10px;paint-order:stroke;}.orange{fill:orange;stroke:orange}text.orange{stroke:black; stroke-width:10px;paint-order:stroke;}.redout{fill:none;stroke:red}.op30{opacity:0.3}.op10{opacity:0.1}.txtstart{text-anchor:start}.txtend{text-anchor:end}.txtmid{text-anchor:middle}.txtvspd{font-family:sans-serif;font-weight:normal}.txtvspdval{font-size:20px}.txtfuel{font-size:11px;font-weight:bold}.txtorb{font-size:12px}.txtorbbig{font-size:18px}.hudver{font-size:10px;font-weight:bold;fill:red;text-anchor:end;font-family:Bank}.msg{font-size:40px;fill:red;text-anchor:middle;font-weight:normal}.cursor{stroke:white}text{stroke:black; stroke-width:10px;paint-order:stroke;}.dimstroke{stroke:%s}.brightstroke{stroke:%s}.indicatorText{font-size:20px;fill:white}.size14{font-size:14px}.size20{font-size:20px}.topButton{fill:%s;opacity:0.5;stroke-width:2;stroke:%s}.topButtonActive{fill:url(#RadialGradientCenter);opacity:0.8;stroke-width:2;stroke:%s}.topButton text{font-size:13px; fill: %s; opacity:1; stroke-width:20px}.topButtonActive text{font-size:13px;fill:%s; stroke-width:0px; opacity:1}.indicatorFont{font-size:20px;font-family:Bank}.dimmer{stroke: %s;}.pdimfill{fill: %s;}.dimfill{fill: %s;}</style> </head> <body> <svg height="100%%" width="100%%" viewBox="0 0 %d %d"> <defs> <radialGradient id="RadialGradientCenterTop" cx="0.5" cy="0" r="1"> <stop offset="0%%" stop-color="%s" stop-opacity="0.5"/> <stop offset="100%%" stop-color="black" stop-opacity="0"/> </radialGradient> <radialGradient id="RadialGradientRightTop" cx="1" cy="0" r="1"> <stop offset="0%%" stop-color="%s" stop-opacity="0.5"/> <stop offset="200%%" stop-color="black" stop-opacity="0"/> </radialGradient> <radialGradient id="ThinRightTopGradient" cx="1" cy="0" r="1"> <stop offset="0%%" stop-color="%s" stop-opacity="0.2"/> <stop offset="200%%" stop-color="black" stop-opacity="0"/> </radialGradient> <radialGradient id="RadialGradientLeftTop" cx="0" cy="0" r="1"> <stop offset="0%%" stop-color="%s" stop-opacity="0.5"/> <stop offset="200%%" stop-color="black" stop-opacity="0"/> </radialGradient> <radialGradient id="ThinLeftTopGradient" cx="0" cy="0" r="1"> <stop offset="0%%" stop-color="%s" stop-opacity="0.2"/> <stop offset="200%%" stop-color="black" stop-opacity="0"/> </radialGradient> <radialGradient id="RadialGradientCenter" cx="0.5" cy="0.5" r="1"> <stop offset="0%%" stop-color="%s" stop-opacity="0.8"/> <stop offset="100%%" stop-color="%s" stop-opacity="0.5"/> </radialGradient> <radialGradient id="RadialPlanetCenter" cx="0.5" cy="0.5" r="0.5"> <stop offset="0%%" stop-color="%s" stop-opacity="1"/> <stop offset="100%%" stop-color="%s" stop-opacity="1"/> </radialGradient> <radialGradient id="RadialAtmo" cx="0.5" cy="0.5" r="0.5"> <stop offset="0%%" stop-color="%s" stop-opacity="1"/> <stop offset="66%%" stop-color="%s" stop-opacity="1"/> <stop offset="100%%" stop-color="%s" stop-opacity="0.1"/> </radialGradient> </defs> <g class="pdim txt txtend">]], bright, bright, bright, brightOrig, brightOrig, dim, dim, dimOrig, dimOrig,dim,bright,dimmer,dimOrig,bright,bright,dimmer,dimmer, dimmerOrig,dimmer, ResolutionX, ResolutionY, dim,dim,dim,dim,dim,brightOrig,dim,dimOrig, dimmerOrig, dimOrig, dimOrig, dimmerOrig)
+                    cachedProloguePvP = notPvPZone
+                    cachedPrologueFreeLook = isFreeLook
+                end
+                newContent[#newContent + 1] = cachedPrologue
         
                 
 
