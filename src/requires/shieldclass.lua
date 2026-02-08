@@ -28,17 +28,17 @@ function ShieldClass(shield, stringmatch, mfloor, msg) -- Everything related to 
         if RCD == 0 and shieldPercent < AutoShieldPercent then updateResists() end
     end
 
-    function Shield.setResist(arguement)
+    function Shield.setResist(argument)
         if not shield then
             msg ("No shield found")
             return
-        elseif arguement == nil or RCD>0 then
+        elseif argument == nil or RCD>0 then
             msg ("Usable once per min.  Usage: /resist 0.15, 0.15, 0.15, 0.15")
             return
         end
         local num  = ' *([+-]?%d+%.?%d*e?[+-]?%d*)'
         local posPattern = num .. ', ' .. num .. ', ' ..  num .. ', ' .. num    
-        local antimatter, electromagnetic, kinetic, thermic = stringmatch(arguement, posPattern)
+        local antimatter, electromagnetic, kinetic, thermic = stringmatch(argument, posPattern)
         if thermic == nil or (antimatter + electromagnetic+ kinetic + thermic) > 0.6 then msg ("Improperly formatted or total exceeds 0.6") return end
         if shield.setResistances(antimatter,electromagnetic,kinetic,thermic) then msg ("Shield Resistances set") else msg ("Resistance setting failed.") end
     end

@@ -62,24 +62,24 @@ function programClass(Nav, c, u, atlas, vBooster, hover, telemeter_1, antigrav, 
             return table1
         end
 
-        local function saveableVariables(subset) -- returns saveable variables by catagory
+        local function saveableVariables(subset) -- returns saveable variables by category
             local returnSet = {}
                 -- Complete list of user variables above, must be in saveableVariables to be stored on databank
 
             if not subset then
                 addTable(returnSet, saveableVariablesBoolean)
-                addTable(returnSet, savableVariablesHandling)
-                addTable(returnSet, savableVariablesHud)
-                addTable(returnSet, savableVariablesPhysics)
+                addTable(returnSet, saveableVariablesHandling)
+                addTable(returnSet, saveableVariablesHud)
+                addTable(returnSet, saveableVariablesPhysics)
                 return returnSet
             elseif subset == "boolean" then
                 return saveableVariablesBoolean
             elseif subset == "handling" then
-                return savableVariablesHandling
+                return saveableVariablesHandling
             elseif subset == "hud" then
-                return savableVariablesHud
+                return saveableVariablesHud
             elseif subset == "physics" then
-                return savableVariablesPhysics
+                return saveableVariablesPhysics
             end            
         end
 

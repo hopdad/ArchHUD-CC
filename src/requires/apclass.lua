@@ -21,7 +21,7 @@ function APClass(Nav, c, u, atlas, vBooster, hover, telemeter_1, antigrav, dbHud
         local OrbitTargetSet = false
         local OrbitTargetPlanet = nil
         local OrbitTicks = 0
-        local minAutopilotSpeed = 55 -- Minimum speed for autopilot to maneuver in m/s.  Keep above 25m/s to prevent nosedives when boosters kick in. Also used in hudclass
+        local minAutopilotSpeed = minAutopilotSpeed -- from globals.lua
         local lastMaxBrakeAtG = nil
         local mousePause = false
         local apThrottleSet = false

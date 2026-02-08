@@ -6,13 +6,23 @@ jobs:
   wrap-and-release:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v2
+      - uses: actions/checkout@v4
+
+      - name: Install Lua
+        run: sudo apt-get update && sudo apt-get install -y lua5.3
+
+      - name: Install Node.js dependencies
+        run: cd scripts && npm install
 
       - name: Detect Version Number
         if: github.ref == 'refs/heads/master'  # ONLY ON MASTER
         run: |
           ./scripts/version-number-from-src.sh
           echo "VERSION_NUMBER=$( ./scripts/version-number-from-src.sh )" >> $GITHUB_ENV
+
+      - name: Build ArchHUD.conf
+        if: github.ref == 'refs/heads/master'  # ONLY ON MASTER
+        run: ./scripts/wrap.sh true
 
       - name: Create Release Notes
         if: github.ref == 'refs/heads/master'  # ONLY ON MASTER
@@ -22,23 +32,11 @@ jobs:
 
       - name: Create Release
         if: github.ref == 'refs/heads/master'  # ONLY ON MASTER
-        id: create_release
-        uses: actions/create-release@v1
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        with:
-          tag_name: v${{ env.VERSION_NUMBER }}
-          release_name: Release v${{ env.VERSION_NUMBER }}
-          body_path: ReleaseNotes.md
-
-      - name: Upload Autoconf as Release Asset
-        if: github.ref == 'refs/heads/master'  # ONLY ON MASTER
-        id: upload-autoconf
-        uses: actions/upload-release-asset@v1
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        with:
-          upload_url: ${{ steps.create_release.outputs.upload_url }} # This pulls from the CREATE RELEASE step above
-          asset_path: ./ArchHUD.zip
-          asset_name: ArchHUD.zip
-          asset_content_type: text/yaml
+        run: |
+          gh release create "v${{ env.VERSION_NUMBER }}" \
+            --title "Release v${{ env.VERSION_NUMBER }}" \
+            --notes-file ReleaseNotes.md \
+            ArchHUD.conf \
+            ArchHUD-Telemetry.conf

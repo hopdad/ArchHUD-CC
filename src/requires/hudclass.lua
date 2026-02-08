@@ -15,7 +15,7 @@ function HudClass(Nav, c, u, s, atlas, antigrav, hover, shield, warpdrive, weapo
     local showSettings = false
     local settingsVariables = "none"
     local pipeMessage = ""
-    local minAutopilotSpeed = 55 -- Minimum speed for autopilot to maneuver in m/s.  Keep above 25m/s to prevent nosedives when boosters kick in. Also used in apclass
+    local minAutopilotSpeed = minAutopilotSpeed -- from globals.lua
     local maxBrakeDistance = 0
     local maxBrakeTime = 0
     local WeaponPanelID = nil
