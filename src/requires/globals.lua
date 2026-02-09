@@ -1,7 +1,11 @@
 -- Auto Variable declarations that store status of ship on databank. Do not edit directly here unless you know what you are doing, these change as ship flies.
 -- NOTE: autoVariables below must contain any variable that needs to be saved/loaded from databank system
+
+-- Accessor factory for databank save/load system (also defined in ArchHUD.lua for user variables)
+local function _A(n)return{set=function(i)_G[n]=i end,get=function()return _G[n]end}end
+
     BrakeToggleStatus = BrakeToggleDefault
-    VertTakeOffEngine = false 
+    VertTakeOffEngine = false
     BrakeIsOn = false
     RetrogradeIsOn = false
     ProgradeIsOn = false
@@ -27,7 +31,7 @@
     TotalDistanceTravelled = 0.0
     TotalFlightTime = 0
     SavedLocations = {}
-    VectorToTarget = false    
+    VectorToTarget = false
     LocationIndex = 0
     LastMaxBrake = 0
     LockPitch = nil
@@ -38,23 +42,37 @@
     LeftAmount = 0
     IntoOrbit = false
     iphCondition = "All"
-    stablized = true
+    stablized = true -- NOTE: intentional misspelling preserved for databank key compatibility
     UseExtra = "Off"
     LastVersionUpdate = 0.000
     saveRoute = {}
     apRoute = {}
     ecuThrottle = {}
     adjMaxGameVelocity = 9000
+    SelectedTab = nil
 
-    autoVariables = {VertTakeOff={set=function (i)VertTakeOff=i end,get=function() return VertTakeOff end}, VertTakeOffEngine={set=function (i)VertTakeOffEngine=i end,get=function() return VertTakeOffEngine end},SpaceTarget={set=function (i)SpaceTarget=i end,get=function() return SpaceTarget end},BrakeToggleStatus={set=function (i)BrakeToggleStatus=i end,get=function() return BrakeToggleStatus end}, BrakeIsOn={set=function (i)BrakeIsOn=i end,get=function() return BrakeIsOn end}, RetrogradeIsOn={set=function (i)RetrogradeIsOn=i end,get=function() return RetrogradeIsOn end}, ProgradeIsOn={set=function (i)ProgradeIsOn=i end,get=function() return ProgradeIsOn end},
-    Autopilot={set=function (i)Autopilot=i end,get=function() return Autopilot end}, TurnBurn={set=function (i)TurnBurn=i end,get=function() return TurnBurn end}, AltitudeHold={set=function (i)AltitudeHold=i end,get=function() return AltitudeHold end}, BrakeLanding={set=function (i)BrakeLanding=i end,get=function() return BrakeLanding end},
-    Reentry={set=function (i)Reentry=i end,get=function() return Reentry end}, AutoTakeoff={set=function (i)AutoTakeoff=i end,get=function() return AutoTakeoff end}, HoldAltitude={set=function (i)HoldAltitude=i end,get=function() return HoldAltitude end}, AutopilotAccelerating={set=function (i)AutopilotAccelerating=i end,get=function() return AutopilotAccelerating end}, AutopilotBraking={set=function (i)AutopilotBraking=i end,get=function() return AutopilotBraking end},
-    AutopilotCruising={set=function (i)AutopilotCruising=i end,get=function() return AutopilotCruising end}, AutopilotRealigned={set=function (i)AutopilotRealigned=i end,get=function() return AutopilotRealigned end}, AutopilotEndSpeed={set=function (i)AutopilotEndSpeed=i end,get=function() return AutopilotEndSpeed end}, AutopilotStatus={set=function (i)AutopilotStatus=i end,get=function() return AutopilotStatus end},
-    PrevViewLock={set=function (i)PrevViewLock=i end,get=function() return PrevViewLock end}, AutopilotTargetName={set=function (i)AutopilotTargetName=i end,get=function() return AutopilotTargetName end}, AutopilotTargetCoords={set=function (i)AutopilotTargetCoords=i end,get=function() return AutopilotTargetCoords end},
-    AutopilotTargetIndex={set=function (i)AutopilotTargetIndex=i end,get=function() return AutopilotTargetIndex end}, TotalDistanceTravelled={set=function (i)TotalDistanceTravelled=i end,get=function() return TotalDistanceTravelled end},
-    TotalFlightTime={set=function (i)TotalFlightTime=i end,get=function() return TotalFlightTime end}, SavedLocations={set=function (i)SavedLocations=i end,get=function() return SavedLocations end}, VectorToTarget={set=function (i)VectorToTarget=i end,get=function() return VectorToTarget end}, LocationIndex={set=function (i)LocationIndex=i end,get=function() return LocationIndex end}, LastMaxBrake={set=function (i)LastMaxBrake=i end,get=function() return LastMaxBrake end}, 
-    LockPitch={set=function (i)LockPitch=i end,get=function() return LockPitch end}, LastMaxBrakeInAtmo={set=function (i)LastMaxBrakeInAtmo=i end,get=function() return LastMaxBrakeInAtmo end}, AntigravTargetAltitude={set=function (i)AntigravTargetAltitude=i end,get=function() return AntigravTargetAltitude end}, LastStartTime={set=function (i)LastStartTime=i end,get=function() return LastStartTime end}, iphCondition={set=function (i)iphCondition=i end,get=function() return iphCondition end}, stablized={set=function (i)stablized=i end,get=function() return stablized end}, UseExtra={set=function (i)UseExtra=i end,get=function() return UseExtra end}, SelectedTab={set=function (i)SelectedTab=i end,get=function() return SelectedTab end}, saveRoute={set=function (i)saveRoute=i end,get=function() return saveRoute end},
-    apRoute={set=function (i)apRoute=i end,get=function() return apRoute end}, ecuThrottle={set=function (i)ecuThrottle=i end,get=function() return ecuThrottle end}, adjMaxGameVelocity={set=function (i)adjMaxGameVelocity=i end,get=function() return adjMaxGameVelocity end}}
+    autoVariables = {VertTakeOff=_A("VertTakeOff"), VertTakeOffEngine=_A("VertTakeOffEngine"),
+    SpaceTarget=_A("SpaceTarget"), BrakeToggleStatus=_A("BrakeToggleStatus"),
+    BrakeIsOn=_A("BrakeIsOn"), RetrogradeIsOn=_A("RetrogradeIsOn"), ProgradeIsOn=_A("ProgradeIsOn"),
+    Autopilot=_A("Autopilot"), TurnBurn=_A("TurnBurn"), AltitudeHold=_A("AltitudeHold"),
+    BrakeLanding=_A("BrakeLanding"), Reentry=_A("Reentry"), AutoTakeoff=_A("AutoTakeoff"),
+    HoldAltitude=_A("HoldAltitude"), AutopilotAccelerating=_A("AutopilotAccelerating"),
+    AutopilotBraking=_A("AutopilotBraking"), AutopilotCruising=_A("AutopilotCruising"),
+    AutopilotRealigned=_A("AutopilotRealigned"), AutopilotEndSpeed=_A("AutopilotEndSpeed"),
+    AutopilotStatus=_A("AutopilotStatus"), PrevViewLock=_A("PrevViewLock"),
+    AutopilotTargetName=_A("AutopilotTargetName"), AutopilotTargetCoords=_A("AutopilotTargetCoords"),
+    AutopilotTargetIndex=_A("AutopilotTargetIndex"), TotalDistanceTravelled=_A("TotalDistanceTravelled"),
+    TotalFlightTime=_A("TotalFlightTime"), SavedLocations=_A("SavedLocations"),
+    VectorToTarget=_A("VectorToTarget"), LocationIndex=_A("LocationIndex"),
+    LastMaxBrake=_A("LastMaxBrake"), LockPitch=_A("LockPitch"),
+    LastMaxBrakeInAtmo=_A("LastMaxBrakeInAtmo"), AntigravTargetAltitude=_A("AntigravTargetAltitude"),
+    LastStartTime=_A("LastStartTime"), iphCondition=_A("iphCondition"),
+    stablized=_A("stablized"), UseExtra=_A("UseExtra"), SelectedTab=_A("SelectedTab"),
+    saveRoute=_A("saveRoute"), apRoute=_A("apRoute"), ecuThrottle=_A("ecuThrottle"),
+    adjMaxGameVelocity=_A("adjMaxGameVelocity")}
+
+-- Shared constants used across multiple modules
+    minAutopilotSpeed = 55 -- Minimum speed for autopilot to maneuver in m/s. Keep above 25m/s to prevent nosedives when boosters kick in.
 
 -- Unsaved Globals - Do not edit unless you know what you are doing
     function globalDeclare(c, u, systime, mfloor, atmosphere) -- # is how many classes variable is in
@@ -76,12 +94,12 @@
         leftmouseclick = false
         msgText = "empty" -- 6
         msgTimer = 3 -- 4
-        isBoosting = false -- 3 Dodgin's Don't Die Rocket Govenor
+        isBoosting = false -- 3 Dodgin's Don't Die Rocket Governor
         brakeDistance = 0 -- 2
         brakeTime = 0 -- 2
         autopilotTargetPlanet = nil -- 4
         simulatedX = 0 -- 3
-        simulatedY = 0 -- 3       
+        simulatedY = 0 -- 3
         distance = 0 -- 4 but needs investigation
         spaceLand = false -- 2
         spaceLaunch = false -- 3
@@ -104,6 +122,7 @@
         RADAR = nil -- 3
         CONTROL = nil -- 2
         SHIELD = nil -- 2
+        TELEMETRY = nil -- 1
         Animating = false -- 4
         Animated = false -- 2
         autoRoll = autoRollPreference -- 4
@@ -118,7 +137,7 @@
         constructRight = vec3(C.getWorldOrientationRight()) -- 3
         coreVelocity = vec3(C.getVelocity()) -- 3
         constructVelocity = vec3(C.getWorldVelocity()) -- 4
-        velMag = vec3(constructVelocity):len() -- 3
+        velMag = constructVelocity:len() -- 3
         worldVertical = vec3(c.getWorldVertical()) -- 3
         vSpd = -worldVertical:dot(constructVelocity) -- 2
         worldPos = vec3(C.getWorldPosition()) -- 5
@@ -157,5 +176,13 @@
         pipeDestT = nil -- 2
         pipeDistT = nil -- 2
         alignTarget = false -- 2
+        autoRollOverrideTime = 0 -- AutoRoll manual override timestamp
+        alignmentProgress = 0 -- Alignment progress 0-1 for HUD display
+        landingStopDist = 0 -- BrakeLanding: computed stop distance for HUD
+        landingGroundDist = -1 -- BrakeLanding: distance to ground for HUD
+        landingSafe = true -- BrakeLanding: can we stop in time?
+        collisionTier = 0 -- Collision: 0=none, 1=caution(30s), 2=warning(10s), 3=emergency
+        collisionSavedRoute = {} -- Collision: saved route for resume after avoidance
+        reentryModePreference = false -- Reentry: false=parachute, true=glide (toggled by pilot)
         if shield then shieldPercent = mfloor(0.5 + shield.getShieldHitpoints() * 100 / shield.getMaxShieldHitpoints()) end
     end

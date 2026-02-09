@@ -1,11 +1,9 @@
 require 'src.slots'
 
 Nav = Navigator.new(system, core, unit)
---
-function p(msg)
-    system.print(system.getArkTime()..": "..msg)
-end
---]]
+
+-- Accessor factory for databank save/load system
+local function _A(n)return{set=function(i)_G[n]=i end,get=function()return _G[n]end}end
 
 -- User variables. Must be global to work with databank system
     useTheseSettings = false --export:  Change this to true to override databank saved settings
@@ -43,28 +41,33 @@ end
         DisplayOdometer = true --export: (Default: true) If false the top odometer bar of information will be hidden.
         ECUHud = false --export: (Default: false) If set to true and HUD is installed on an Emergency Control Unit, when ECU activates due to leaving control unit, it will continue normal hud flight.
         MaintainOrbit = true --export: (Default: true) If true, ship will attempt to maintain orbit if it decays (when not autopiloting to a landing point) till fuel runs out.
-        saveableVariablesBoolean = {userControlScheme={set=function (i)userControlScheme=i end,get=function() return userControlScheme end}, soundFolder={set=function (i)soundFolder=i end,get=function() return soundFolder end},  privateFile={set=function (i)privateFile=i end,get=function() return privateFile end},freeLookToggle={set=function (i)freeLookToggle=i end,get=function() return freeLookToggle end}, BrakeToggleDefault={set=function (i)BrakeToggleDefault=i end,get=function() return BrakeToggleDefault end}, RemoteFreeze={set=function (i)RemoteFreeze=i end,get=function() return RemoteFreeze end}, brightHud={set=function (i)brightHud=i end,get=function() return brightHud end}, RemoteHud={set=function (i)RemoteHud=i end,get=function() return RemoteHud end}, VanillaRockets={set=function (i)VanillaRockets=i end,get=function() return VanillaRockets end},
-        InvertMouse={set=function (i)InvertMouse=i end,get=function() return InvertMouse end}, autoRollPreference={set=function (i)autoRollPreference=i end,get=function() return autoRollPreference end}, ExternalAGG={set=function (i)ExternalAGG=i end,get=function() return ExternalAGG end}, ShouldCheckDamage={set=function (i)ShouldCheckDamage=i end,get=function() return ShouldCheckDamage end}, 
-        AtmoSpeedAssist={set=function (i)AtmoSpeedAssist=i end,get=function() return AtmoSpeedAssist end}, ForceAlignment={set=function (i)ForceAlignment=i end,get=function() return ForceAlignment end}, DisplayDeadZone={set=function (i)DisplayDeadZone=i end,get=function() return DisplayDeadZone end}, showHud={set=function (i)showHud=i end,get=function() return showHud end}, hideHudOnToggleWidgets={set=function (i)hideHudOnToggleWidgets=i end,get=function() return hideHudOnToggleWidgets end}, 
-        ShiftShowsRemoteButtons={set=function (i)ShiftShowsRemoteButtons=i end,get=function() return ShiftShowsRemoteButtons end}, SetWaypointOnExit={set=function (i)SetWaypointOnExit=i end,get=function() return SetWaypointOnExit end}, AlwaysVSpd={set=function (i)AlwaysVSpd=i end,get=function() return AlwaysVSpd end}, BarFuelDisplay={set=function (i)BarFuelDisplay=i end,get=function() return BarFuelDisplay end}, 
-        voices={set=function (i)voices=i end,get=function() return voices end}, alerts={set=function (i)alerts=i end,get=function() return alerts end}, CollisionSystem={set=function (i)CollisionSystem=i end,get=function() return CollisionSystem end}, AbandonedRadar={set=function (i)AbandonedRadar=i end,get=function() return AbandonedRadar end},AutoShieldToggle={set=function (i)AutoShieldToggle=i end,get=function() return AutoShieldToggle end}, PreventPvP={set=function (i)PreventPvP=i end,get=function() return PreventPvP end}, 
-        DisplayOdometer={set=function (i)DisplayOdometer=i end,get=function() return DisplayOdometer end},ECUHud={set=function (i)ECUHud=i end,get=function() return ECUHud end},MaintainOrbit={set=function (i)MaintainOrbit=i end,get=function() return MaintainOrbit end}}
+        saveableVariablesBoolean = {userControlScheme=_A("userControlScheme"), soundFolder=_A("soundFolder"), privateFile=_A("privateFile"),
+        freeLookToggle=_A("freeLookToggle"), BrakeToggleDefault=_A("BrakeToggleDefault"), RemoteFreeze=_A("RemoteFreeze"),
+        brightHud=_A("brightHud"), RemoteHud=_A("RemoteHud"), VanillaRockets=_A("VanillaRockets"),
+        InvertMouse=_A("InvertMouse"), autoRollPreference=_A("autoRollPreference"), ExternalAGG=_A("ExternalAGG"),
+        ShouldCheckDamage=_A("ShouldCheckDamage"), AtmoSpeedAssist=_A("AtmoSpeedAssist"), ForceAlignment=_A("ForceAlignment"),
+        DisplayDeadZone=_A("DisplayDeadZone"), showHud=_A("showHud"), hideHudOnToggleWidgets=_A("hideHudOnToggleWidgets"),
+        ShiftShowsRemoteButtons=_A("ShiftShowsRemoteButtons"), SetWaypointOnExit=_A("SetWaypointOnExit"),
+        AlwaysVSpd=_A("AlwaysVSpd"), BarFuelDisplay=_A("BarFuelDisplay"),
+        voices=_A("voices"), alerts=_A("alerts"), CollisionSystem=_A("CollisionSystem"),
+        AbandonedRadar=_A("AbandonedRadar"), AutoShieldToggle=_A("AutoShieldToggle"), PreventPvP=_A("PreventPvP"),
+        DisplayOdometer=_A("DisplayOdometer"), ECUHud=_A("ECUHud"), MaintainOrbit=_A("MaintainOrbit")}
 
     -- Ship Handling variables
-    -- NOTE: savableVariablesHandling below must contain any Ship Handling variables that needs to be saved/loaded from databank system
+    -- NOTE: saveableVariablesHandling below must contain any Ship Handling variables that needs to be saved/loaded from databank system
         YawStallAngle = 35 --export: (Default: 35) Angle at which the ship stalls when yawing, determine by experimentation. Higher allows faster AP Bank turns.
         PitchStallAngle = 35 --export: (Default: 35) Angle at which the ship stalls when pitching, determine by experimentation.
-        brakeLandingRate = 30 --export: (Default: 30) Max loss of altitude speed in m/s when doing a brake landing. 30 is safe for almost all ships.  
+        brakeLandingRate = 30 --export: (Default: 30) Max loss of altitude speed in m/s when doing a brake landing. 30 is safe for almost all ships.
         MaxPitch = 30 --export: (Default: 30) Maximum allowed pitch during takeoff and altitude changes while in altitude hold. You can set higher or lower depending on your ships capabilities.
         ReEntryPitch = -30 --export: (Default: -30) Maximum downward pitch allowed during freefall portion of re-entry.
         AutopilotSpaceDistance = 5000 --export: (Default: 5000) Target distance AP will try to stop from a custom waypoint in space.  Good ships can lower this value a lot.
         TargetOrbitRadius = 1.3 --export: (Default: 1.3) How tight you want to orbit the planet at end of autopilot.  The smaller the value the tighter the orbit.  Value is multiple of Atmospheric Height
-        LowOrbitHeight = 2000 --export: (Default: 2000) Height of Orbit above top of atmospehre when using Alt-4-4 same planet autopilot or alt-6-6 in space.
+        LowOrbitHeight = 2000 --export: (Default: 2000) Height of Orbit above top of atmosphere when using Alt-4-4 same planet autopilot or alt-6-6 in space.
         AtmoSpeedLimit = 1175 --export: (Default: 1175) Speed limit in Atmosphere in km/h. AtmoSpeedAssist will cause ship to throttle back when this speed is reached.
         SpaceSpeedLimit = 66000 --export: (Default: 66000) Space speed limit in KM/H. If you hit this speed and are NOT in active autopilot, engines will turn off to prevent using all fuel (66000 means they wont turn off)
         AutoTakeoffAltitude = 1000 --export: (Default: 1000) How high above your ground height AutoTakeoff tries to put you
         TargetHoverHeight = 50 --export: (Default: 50) Hover height above ground when G used to lift off, 50 is above all max hover heights.
-        LandingGearGroundHeight = 0 --export: (Default: 0) Set to AGL when on ground. Will help prevent ship landing on ground then bouncing back up to landing gear height. 
+        LandingGearGroundHeight = 0 --export: (Default: 0) Set to AGL when on ground. Will help prevent ship landing on ground then bouncing back up to landing gear height.
         ReEntryHeight = 100000 --export: (Default: 100000) Height above a planets maximum surface altitude used for re-entry, if height exceeds min space engine height, then 11% atmo is used instead. (100000 means 11% is used)
         MaxGameVelocity = -1.00 --export: (Default: -1.00) Max speed for your autopilot in m/s.  If -1 then when you sit down it will set to actualy max speed.
         AutopilotInterplanetaryThrottle = 1 --export: (Default: 1) How much throttle, 0.0 to 1, you want it to use when in autopilot to another planet while reaching MaxGameVelocity
@@ -77,14 +80,20 @@ end
         AutoShieldPercent = 0 --export: (Default: 0) Automatically adjusts shield resists once per minute if shield percent is less than this value.
         EmergencyWarp = 0 --export: (Default: 0) If > 0 and a radar contact is detected in pvp space and the contact is closer than EmergencyWarp value, and all other warp conditions met, will initiate warp.
         DockingMode = 1 --export: (Default: 1) Docking mode of ship, default is 1 (Manual), options are Manual = 1, Automatic = 2, Semi-automatic = 3
-        savableVariablesHandling = {YawStallAngle={set=function (i)YawStallAngle=i end,get=function() return YawStallAngle end},PitchStallAngle={set=function (i)PitchStallAngle=i end,get=function() return PitchStallAngle end},brakeLandingRate={set=function (i)brakeLandingRate=i end,get=function() return brakeLandingRate end},MaxPitch={set=function (i)MaxPitch=i end,get=function() return MaxPitch end}, ReEntryPitch={set=function (i)ReEntryPitch=i end,get=function() return ReEntryPitch end},AutopilotSpaceDistance={set=function (i)AutopilotSpaceDistance=i end,get=function() return AutopilotSpaceDistance end}, TargetOrbitRadius={set=function (i)TargetOrbitRadius=i end,get=function() return TargetOrbitRadius end}, LowOrbitHeight={set=function (i)LowOrbitHeight=i end,get=function() return LowOrbitHeight end},
-        AtmoSpeedLimit={set=function (i)AtmoSpeedLimit=i end,get=function() return AtmoSpeedLimit end},SpaceSpeedLimit={set=function (i)SpaceSpeedLimit=i end,get=function() return SpaceSpeedLimit end},AutoTakeoffAltitude={set=function (i)AutoTakeoffAltitude=i end,get=function() return AutoTakeoffAltitude end},TargetHoverHeight={set=function (i)TargetHoverHeight=i end,get=function() return TargetHoverHeight end}, LandingGearGroundHeight={set=function (i)LandingGearGroundHeight=i end,get=function() return LandingGearGroundHeight end}, ReEntryHeight={set=function (i)ReEntryHeight=i end,get=function() return ReEntryHeight end},
-        MaxGameVelocity={set=function (i)MaxGameVelocity=i end,get=function() return MaxGameVelocity end}, AutopilotInterplanetaryThrottle={set=function (i)AutopilotInterplanetaryThrottle=i end,get=function() return AutopilotInterplanetaryThrottle end},warmup={set=function (i)warmup=i end,get=function() return warmup end},fuelTankHandlingAtmo={set=function (i)fuelTankHandlingAtmo=i end,get=function() return fuelTankHandlingAtmo end},fuelTankHandlingSpace={set=function (i)fuelTankHandlingSpace=i end,get=function() return fuelTankHandlingSpace end},
-        fuelTankHandlingRocket={set=function (i)fuelTankHandlingRocket=i end,get=function() return fuelTankHandlingRocket end},ContainerOptimization={set=function (i)ContainerOptimization=i end,get=function() return ContainerOptimization end},FuelTankOptimization={set=function (i)FuelTankOptimization=i end,get=function() return FuelTankOptimization end},AutoShieldPercent={set=function (i)AutoShieldPercent=i end,get=function() return AutoShieldPercent end},
-        EmergencyWarp={set=function (i)EmergencyWarp=i end,get=function() return EmergencyWarp end}, DockingMode={set=function (i)DockingMode=i end,get=function() return DockingMode end}}
+        saveableVariablesHandling = {YawStallAngle=_A("YawStallAngle"), PitchStallAngle=_A("PitchStallAngle"),
+        brakeLandingRate=_A("brakeLandingRate"), MaxPitch=_A("MaxPitch"), ReEntryPitch=_A("ReEntryPitch"),
+        AutopilotSpaceDistance=_A("AutopilotSpaceDistance"), TargetOrbitRadius=_A("TargetOrbitRadius"),
+        LowOrbitHeight=_A("LowOrbitHeight"), AtmoSpeedLimit=_A("AtmoSpeedLimit"), SpaceSpeedLimit=_A("SpaceSpeedLimit"),
+        AutoTakeoffAltitude=_A("AutoTakeoffAltitude"), TargetHoverHeight=_A("TargetHoverHeight"),
+        LandingGearGroundHeight=_A("LandingGearGroundHeight"), ReEntryHeight=_A("ReEntryHeight"),
+        MaxGameVelocity=_A("MaxGameVelocity"), AutopilotInterplanetaryThrottle=_A("AutopilotInterplanetaryThrottle"),
+        warmup=_A("warmup"), fuelTankHandlingAtmo=_A("fuelTankHandlingAtmo"),
+        fuelTankHandlingSpace=_A("fuelTankHandlingSpace"), fuelTankHandlingRocket=_A("fuelTankHandlingRocket"),
+        ContainerOptimization=_A("ContainerOptimization"), FuelTankOptimization=_A("FuelTankOptimization"),
+        AutoShieldPercent=_A("AutoShieldPercent"), EmergencyWarp=_A("EmergencyWarp"), DockingMode=_A("DockingMode")}
 
-    -- HUD Postioning variables
-    -- NOTE: savableVariablesHud below must contain any HUD Postioning variables that needs to be saved/loaded from databank system
+    -- HUD Positioning variables
+    -- NOTE: saveableVariablesHud below must contain any HUD Positioning variables that needs to be saved/loaded from databank system
         ResolutionX = 1920 --export: (Default: 1920) Does not need to be set to same as game resolution. You can set 1920 on a 2560 to get larger resolution
         ResolutionY = 1080 --export: (Default: 1080) Does not need to be set to same as game resolution. You can set 1080 on a 1440 to get larger resolution
         circleRad = 400 --export: (Default: 400) The size of the artifical horizon circle, recommended minimum 100, maximum 400. Looks different > 200. Set to 0 to remove.
@@ -94,14 +103,14 @@ end
         PvPR = 255 --export: (Default: 255) PvP HUD color
         PvPG = 0 --export: (Default: 0) PvP HUD color
         PvPB = 0 --export: (Default: 0) PvP HUD color
-        centerX = 960 --export: (Default: 960) X postion of Artifical Horizon (KSP Navball), Default 960. Use centerX=700 and centerY=880 for lower left placement.
-        centerY = 540 --export: (Default: 540) Y postion of Artifical Horizon (KSP Navball), Default 540. Use centerX=700 and centerY=880 for lower left placement.
+        centerX = 960 --export: (Default: 960) X position of Artifical Horizon (KSP Navball), Default 960. Use centerX=700 and centerY=880 for lower left placement.
+        centerY = 540 --export: (Default: 540) Y position of Artifical Horizon (KSP Navball), Default 540. Use centerX=700 and centerY=880 for lower left placement.
         throtPosX = 1300 --export: (Default: 1300) X position of Throttle Indicator, default 1300 to put it to right of default AH centerX parameter.
         throtPosY = 540 --export: (Default: 540) Y position of Throttle indicator, default is 540 to place it centered on default AH centerY parameter
-        vSpdMeterX = 1525  --export: (Default: 1525) X postion of Vertical Speed Meter. Default 1525
-        vSpdMeterY = 325 --export: (Default: 325) Y postion of Vertical Speed Meter. Default 325
-        altMeterX = 550  --export: (Default: 550) X postion of Altimeter. Default 550
-        altMeterY = 540 --export: (Default: 540) Y postion of Altimeter. Default 500
+        vSpdMeterX = 1525  --export: (Default: 1525) X position of Vertical Speed Meter. Default 1525
+        vSpdMeterY = 325 --export: (Default: 325) Y position of Vertical Speed Meter. Default 325
+        altMeterX = 550  --export: (Default: 550) X position of Altimeter. Default 550
+        altMeterY = 540 --export: (Default: 540) Y position of Altimeter. Default 500
         fuelX = 30 --export: (Default: 30) X position of fuel tanks, set to 100 for non-bar style fuel display, set both fuelX and fuelY to 0 to hide fuel display
         fuelY = 700 --export: (Default: 700) Y position of fuel tanks, set to 300 for non-bar style fuel display, set both fuelX and fuelY to 0 to hide fuel display
         shieldX = 1750 --export: (Default: 1750) X position of shield indicator
@@ -110,17 +119,21 @@ end
         radarY = 350 --export: (Default: 350) Y position of radar info
         DeadZone = 50 --export: (Default: 50) Number of pixels of deadzone at the center of the screen
         OrbitMapSize = 250 --export: (Default: 250) Size of the orbit map, make sure it is divisible by 4
-        OrbitMapX = 0 --export: (Default: 0) X postion of Orbit Display 
+        OrbitMapX = 0 --export: (Default: 0) X position of Orbit Display
         OrbitMapY = 30 --export: (Default: 30) Y position of Orbit Display
 
-        savableVariablesHud = {ResolutionX={set=function (i)ResolutionX=i end,get=function() return ResolutionX end},ResolutionY={set=function (i)ResolutionY=i end,get=function() return ResolutionY end},circleRad={set=function (i)circleRad=i end,get=function() return circleRad end},SafeR={set=function (i)SafeR=i end,get=function() return SafeR end}, SafeG={set=function (i)SafeG=i end,get=function() return SafeG end}, SafeB={set=function (i)SafeB=i end,get=function() return SafeB end}, 
-        PvPR={set=function (i)PvPR=i end,get=function() return PvPR end}, PvPG={set=function (i)PvPG=i end,get=function() return PvPG end}, PvPB={set=function (i)PvPB=i end,get=function() return PvPB end},centerX={set=function (i)centerX=i end,get=function() return centerX end}, centerY={set=function (i)centerY=i end,get=function() return centerY end}, throtPosX={set=function (i)throtPosX=i end,get=function() return throtPosX end}, throtPosY={set=function (i)throtPosY=i end,get=function() return throtPosY end},
-        vSpdMeterX={set=function (i)vSpdMeterX=i end,get=function() return vSpdMeterX end}, vSpdMeterY={set=function (i)vSpdMeterY=i end,get=function() return vSpdMeterY end},altMeterX={set=function (i)altMeterX=i end,get=function() return altMeterX end}, altMeterY={set=function (i)altMeterY=i end,get=function() return altMeterY end},fuelX={set=function (i)fuelX=i end,get=function() return fuelX end}, fuelY={set=function (i)fuelY=i end,get=function() return fuelY end},
-        shieldX={set=function (i)shieldX=i end,get=function() return shieldX end}, shieldY={set=function (i)shieldY=i end,get=function() return shieldY end}, radarX={set=function (i)radarX=i end,get=function() return radarX end}, radarY={set=function (i)radarY=i end,get=function() return radarY end},DeadZone={set=function (i)DeadZone=i end,get=function() return DeadZone end},
-        OrbitMapSize={set=function (i)OrbitMapSize=i end,get=function() return OrbitMapSize end}, OrbitMapX={set=function (i)OrbitMapX=i end,get=function() return OrbitMapX end}, OrbitMapY={set=function (i)OrbitMapY=i end,get=function() return OrbitMapY end}}
+        saveableVariablesHud = {ResolutionX=_A("ResolutionX"), ResolutionY=_A("ResolutionY"),
+        circleRad=_A("circleRad"), SafeR=_A("SafeR"), SafeG=_A("SafeG"), SafeB=_A("SafeB"),
+        PvPR=_A("PvPR"), PvPG=_A("PvPG"), PvPB=_A("PvPB"),
+        centerX=_A("centerX"), centerY=_A("centerY"), throtPosX=_A("throtPosX"), throtPosY=_A("throtPosY"),
+        vSpdMeterX=_A("vSpdMeterX"), vSpdMeterY=_A("vSpdMeterY"),
+        altMeterX=_A("altMeterX"), altMeterY=_A("altMeterY"),
+        fuelX=_A("fuelX"), fuelY=_A("fuelY"), shieldX=_A("shieldX"), shieldY=_A("shieldY"),
+        radarX=_A("radarX"), radarY=_A("radarY"), DeadZone=_A("DeadZone"),
+        OrbitMapSize=_A("OrbitMapSize"), OrbitMapX=_A("OrbitMapX"), OrbitMapY=_A("OrbitMapY")}
 
     -- Ship flight physics variables - Change with care, can have large effects on ships performance.
-        -- NOTE: savableVariablesPhysics below must contain any Ship flight physics variables that needs to be saved/loaded from databank system
+        -- NOTE: saveableVariablesPhysics below must contain any Ship flight physics variables that needs to be saved/loaded from databank system
             speedChangeLarge = 5.0 --export: (Default: 5) The speed change that occurs when you tap speed up/down or mousewheel, default is 5%
             speedChangeSmall = 1.0 --export: (Default: 1) the speed change that occurs while you hold speed up/down, default is 1%
             MouseXSensitivity = 0.003 --export: (Default: 0.003) For virtual joystick only
@@ -136,19 +149,24 @@ end
             brakeSpeedFactor = 3 --export: (Default: 3) When braking, this factor will increase the brake force by brakeSpeedFactor * velocity
             brakeFlatFactor = 1 --export: (Default: 1) When braking, this factor will increase the brake force by a flat brakeFlatFactor * velocity direction> (higher value may be unstable)
             DampingMultiplier = 40 --export: (Default: 40) How strongly autopilot dampens when nearing the correct orientation
-            hudTickRate = 0.0666667 --export: (Default: 0.0666667) Set the tick rate for your HUD. 
+            hudTickRate = 0.0666667 --export: (Default: 0.0666667) Set the tick rate for your HUD.
             ExtraEscapeThrust = 1.0 --export: (Default: 1.0) Set this to 1 to use friction burn speed as your max speed when escaping atmosphere. Setting other than 1 will be a the value multiplied by your friction burn speed.
-            ExtraLongitudeTags = "none" --export: (Default: "none") Enter any extra longitudinal tags you use inside '' seperated by space, i.e. "forward faster major" These will be added to the engines that are control by longitude.
-            ExtraLateralTags = "none" --export: (Default: "none") Enter any extra lateral tags you use inside '' seperated by space, i.e. "left right" These will be added to the engines that are control by lateral.
-            ExtraVerticalTags = "none" --export: (Default: "none") Enter any extra longitudinal tags you use inside '' seperated by space, i.e. "up down" These will be added to the engines that are control by vertical.
+            ExtraLongitudeTags = "none" --export: (Default: "none") Enter any extra longitudinal tags you use inside '' separated by space, i.e. "forward faster major" These will be added to the engines that are control by longitude.
+            ExtraLateralTags = "none" --export: (Default: "none") Enter any extra lateral tags you use inside '' separated by space, i.e. "left right" These will be added to the engines that are control by lateral.
+            ExtraVerticalTags = "none" --export: (Default: "none") Enter any extra longitudinal tags you use inside '' separated by space, i.e. "up down" These will be added to the engines that are control by vertical.
             allowedHorizontalDrift = 0.05 --export: (Default: 0.05) Allowed horizontal drift rate, in m/s, during brakelanding with Alignment or Drift prevention active.
             FastOrbit = 0.0 --export: (Default: 0.0) If > 0, and MaintainOrbit is true, ship will add OrbitVelocity * FastOrbit to OrbitVelocity and use engines to maintain. USE AT OWN RISK.
-            savableVariablesPhysics = {speedChangeLarge={set=function (i)speedChangeLarge=i end,get=function() return speedChangeLarge end}, speedChangeSmall={set=function (i)speedChangeSmall=i end,get=function() return speedChangeSmall end}, MouseXSensitivity={set=function (i)MouseXSensitivity=i end,get=function() return MouseXSensitivity end}, MouseYSensitivity={set=function (i)MouseYSensitivity=i end,get=function() return MouseYSensitivity end}, autoRollFactor={set=function (i)autoRollFactor=i end,get=function() return autoRollFactor end},
-            rollSpeedFactor={set=function (i)rollSpeedFactor=i end,get=function() return rollSpeedFactor end}, autoRollRollThreshold={set=function (i)autoRollRollThreshold=i end,get=function() return autoRollRollThreshold end}, minRollVelocity={set=function (i)minRollVelocity=i end,get=function() return minRollVelocity end}, TrajectoryAlignmentStrength={set=function (i)TrajectoryAlignmentStrength=i end,get=function() return TrajectoryAlignmentStrength end},
-            torqueFactor={set=function (i)torqueFactor=i end,get=function() return torqueFactor end}, pitchSpeedFactor={set=function (i)pitchSpeedFactor=i end,get=function() return pitchSpeedFactor end}, yawSpeedFactor={set=function (i)yawSpeedFactor=i end,get=function() return yawSpeedFactor end}, brakeSpeedFactor={set=function (i)brakeSpeedFactor=i end,get=function() return brakeSpeedFactor end}, brakeFlatFactor={set=function (i)brakeFlatFactor=i end,get=function() return brakeFlatFactor end}, DampingMultiplier={set=function (i)DampingMultiplier=i end,get=function() return DampingMultiplier end}, 
-            hudTickRate={set=function (i)hudTickRate=i end,get=function() return hudTickRate end}, ExtraEscapeThrust={set=function (i)ExtraEscapeThrust=i end,get=function() return ExtraEscapeThrust end}, 
-            ExtraLongitudeTags={set=function (i)ExtraLongitudeTags=i end,get=function() return ExtraLongitudeTags end}, ExtraLateralTags={set=function (i)ExtraLateralTags=i end,get=function() return ExtraLateralTags end},
-            ExtraVerticalTags={set=function (i)ExtraVerticalTags=i end,get=function() return ExtraVerticalTags end}, allowedHorizontalDrift={set=function (i)allowedHorizontalDrift=i end,get=function() return allowedHorizontalDrift end}, FastOrbit={set=function (i)FastOrbit=i end,get=function() return FastOrbit end} }
+            saveableVariablesPhysics = {speedChangeLarge=_A("speedChangeLarge"), speedChangeSmall=_A("speedChangeSmall"),
+            MouseXSensitivity=_A("MouseXSensitivity"), MouseYSensitivity=_A("MouseYSensitivity"),
+            autoRollFactor=_A("autoRollFactor"), rollSpeedFactor=_A("rollSpeedFactor"),
+            autoRollRollThreshold=_A("autoRollRollThreshold"), minRollVelocity=_A("minRollVelocity"),
+            TrajectoryAlignmentStrength=_A("TrajectoryAlignmentStrength"), torqueFactor=_A("torqueFactor"),
+            pitchSpeedFactor=_A("pitchSpeedFactor"), yawSpeedFactor=_A("yawSpeedFactor"),
+            brakeSpeedFactor=_A("brakeSpeedFactor"), brakeFlatFactor=_A("brakeFlatFactor"),
+            DampingMultiplier=_A("DampingMultiplier"), hudTickRate=_A("hudTickRate"),
+            ExtraEscapeThrust=_A("ExtraEscapeThrust"), ExtraLongitudeTags=_A("ExtraLongitudeTags"),
+            ExtraLateralTags=_A("ExtraLateralTags"), ExtraVerticalTags=_A("ExtraVerticalTags"),
+            allowedHorizontalDrift=_A("allowedHorizontalDrift"), FastOrbit=_A("FastOrbit")}
 
 local s, atlas = pcall(require, "autoconf/custom/" .. customAtlas)
 if not s then
@@ -157,13 +175,15 @@ end
 
 local requireTable = {"autoconf/custom/archhud/globals","autoconf/custom/archhud/hudclass", "autoconf/custom/archhud/apclass", "autoconf/custom/archhud/controlclass",
                       "autoconf/custom/archhud/atlasclass", "autoconf/custom/archhud/baseclass", "autoconf/custom/archhud/shieldclass",
-                      "autoconf/custom/archhud/radarclass", "autoconf/custom/archhud/axiscommandoverride", "autoconf/custom/archhud/fueltankdefinitions", "autoconf/custom/archhud/userclass"}
+                      "autoconf/custom/archhud/radarclass", "autoconf/custom/archhud/axiscommandoverride", "autoconf/custom/archhud/fueltankdefinitions",
+                      "autoconf/custom/archhud/telemetryclass", "autoconf/custom/archhud/userclass"}
 
 for k,v in ipairs(requireTable) do
-    pcall(require,requireTable[k])
+    local ok, err = pcall(require, v)
+    if not ok then system.print("Failed to load " .. v .. ": " .. tostring(err)) end
 end
 
-script = {}  -- wrappable container for all the code. Different than normal DU Lua in that things are not seperated out.
+script = {}  -- wrappable container for all the code
 
 VERSION_NUMBER = 2.105
 
@@ -177,7 +197,7 @@ VERSION_NUMBER = 2.105
         PROGRAM.onStop()
     end
 
-    function script.onTick(timerId)  
+    function script.onTick(timerId)
         PROGRAM.onTick(timerId)       -- Various tick timers
     end
 
@@ -214,7 +234,7 @@ VERSION_NUMBER = 2.105
     end
 
 -- Execute Script
-    globalDeclare(core, unit, system.getArkTime, math.floor, unit.getAtmosphereDensity) -- Variables that need to be Global, arent user defined, and are declared in globals.lua due to use across multple modules where there values can change.
+    globalDeclare(core, unit, system.getArkTime, math.floor, unit.getAtmosphereDensity) -- Variables that need to be Global, arent user defined, and are declared in globals.lua due to use across multiple modules where their values can change.
     PROGRAM = programClass(Nav, core, unit, atlas, vBooster, hover, telemeter_1, antigrav, dbHud_1, dbHud_2, radar_1, radar_2, shield, gyro, warpdrive, weapon, screenHud_1, transponder_1)
 
-    script.onStart() 
+    script.onStart()

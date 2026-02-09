@@ -15,7 +15,7 @@ function HudClass(Nav, c, u, s, atlas, antigrav, hover, shield, warpdrive, weapo
     local showSettings = false
     local settingsVariables = "none"
     local pipeMessage = ""
-    local minAutopilotSpeed = 55 -- Minimum speed for autopilot to maneuver in m/s.  Keep above 25m/s to prevent nosedives when boosters kick in. Also used in apclass
+    local minAutopilotSpeed = minAutopilotSpeed -- from globals.lua
     local maxBrakeDistance = 0
     local maxBrakeTime = 0
     local WeaponPanelID = nil
@@ -66,7 +66,7 @@ function HudClass(Nav, c, u, s, atlas, antigrav, hover, shield, warpdrive, weapo
 
         local function DrawVerticalSpeed(newContent, altitude) -- Draw vertical speed indicator - Code by lisa-lionheart
             if vSpdMeterX == 0 and vSpdMeterY == 0 then return end
-            if (altitude < 200000 and not inAtmo) or (altitude and inAtmo) then
+            if (altitude < 200000 and not inAtmo) or inAtmo then
 
                 local angle = 0
                 if mabs(vSpd) > 1 then
@@ -111,13 +111,13 @@ function HudClass(Nav, c, u, s, atlas, antigrav, hover, shield, warpdrive, weapo
 
             if nearPlanet and ((altitude < 200000 and not inAtmo) or (altitude and inAtmo)) then
                 newContent[#newContent + 1] = svgText(rectX+rectW, rectY-10, stringf("%s",planet.name), "pdim altsm txtend")
-                table.insert(newContent, stringf([[
-                    <g class="pdim">                        
-                        <rect class="line" x="%d" y="%d" width="%d" height="%d"/> 
+                newContent[#newContent + 1] = stringf([[
+                    <g class="pdim">
+                        <rect class="line" x="%d" y="%d" width="%d" height="%d"/>
                         <clipPath id="alt"><rect class="line" x="%d" y="%d" width="%d" height="%d"/></clipPath>
-                        <g clip-path="url(#alt)">]], 
+                        <g clip-path="url(#alt)">]],
                         rectX - 1, rectY - 4, rectW + 2, rectH + 6,
-                        rectX + 1, rectY - 1, rectW - 4, rectH))
+                        rectX + 1, rectY - 1, rectW - 4, rectH)
                 local index = 0
                 local divisor = 1
                 local forwardFract = 0
@@ -187,7 +187,7 @@ function HudClass(Nav, c, u, s, atlas, antigrav, hover, shield, warpdrive, weapo
                         forwardFract = 0
                     end
                 end
-                table.insert(newContent, [[</g></g>]])
+                newContent[#newContent + 1] = [[</g></g>]]
             end
         end
 
@@ -233,25 +233,14 @@ function HudClass(Nav, c, u, s, atlas, antigrav, hover, shield, warpdrive, weapo
         
                 local distance = msqrt((dx)^2 + (dy)^2)
         
-                local progradeDot = [[<circle
-                cx="]] .. x .. [["
-                cy="]] .. y .. [["
-                r="]] .. dotRadius/dotSize .. [["
-                style="fill:#d7fe00;stroke:none;fill-opacity:1"/>
-            <circle
-                cx="]] .. x .. [["
-                cy="]] .. y .. [["
-                r="]] .. dotRadius .. [["
-                style="stroke:#d7fe00;stroke-opacity:1;fill:none" />
-            <path
-                d="M ]] .. x-dotSize .. [[,]] .. y .. [[ h ]] .. dotRadius .. [["
-                style="stroke:#d7fe00;stroke-opacity:1" />
-            <path
-                d="M ]] .. x+dotRadius .. [[,]] .. y .. [[ h ]] .. dotRadius .. [["
-                style="stroke:#d7fe00;stroke-opacity:1" />
-            <path
-                d="M ]] .. x .. [[,]] .. y-dotSize .. [[ v ]] .. dotRadius .. [["
-                style="stroke:#d7fe00;stroke-opacity:1" />]]
+                local progradeDot = stringf([[<circle cx="%f" cy="%f" r="%f" style="fill:#d7fe00;stroke:none;fill-opacity:1"/>
+            <circle cx="%f" cy="%f" r="%f" style="stroke:#d7fe00;stroke-opacity:1;fill:none" />
+            <path d="M %f,%f h %f" style="stroke:#d7fe00;stroke-opacity:1" />
+            <path d="M %f,%f h %f" style="stroke:#d7fe00;stroke-opacity:1" />
+            <path d="M %f,%f v %f" style="stroke:#d7fe00;stroke-opacity:1" />]],
+                    x, y, dotRadius/dotSize, x, y, dotRadius,
+                    x-dotSize, y, dotRadius, x+dotRadius, y, dotRadius,
+                    x, y-dotSize, dotRadius)
                     
                 if distance < horizonRadius then
                     newContent[#newContent + 1] = progradeDot
@@ -290,27 +279,14 @@ function HudClass(Nav, c, u, s, atlas, antigrav, hover, shield, warpdrive, weapo
                     -- Retrograde Dot
                     
                     if distance < horizonRadius then
-                        local retrogradeDot = [[<circle
-                        cx="]] .. x .. [["
-                        cy="]] .. y .. [["
-                        r="]] .. dotRadius .. [["
-                        style="stroke:#d7fe00;stroke-opacity:1;fill:none" />
-                    <path
-                        d="M ]] .. x .. [[,]] .. y-dotSize .. [[ v ]] .. dotRadius .. [["
-                        style="stroke:#d7fe00;stroke-opacity:1" id="l"/>
-                    <use
-                        xlink:href="#l"
-                        transform="rotate(120,]] .. x .. [[,]] .. y .. [[)" />
-                    <use
-                        xlink:href="#l"
-                        transform="rotate(-120,]] .. x .. [[,]] .. y .. [[)" />
-                    <path
-                        d="M ]] .. x-dotRadius .. [[,]] .. y .. [[ h ]] .. dotSize .. [["
-                        style="stroke-width:0.5;stroke:#d7fe00;stroke-opacity:1"
-                        transform="rotate(-45,]] .. x .. [[,]] .. y .. [[)" id="c"/>
-                    <use
-                        xlink:href="#c"
-                        transform="rotate(-90,]] .. x .. [[,]] .. y .. [[)"/>]]
+                        local retrogradeDot = stringf([[<circle cx="%f" cy="%f" r="%f" style="stroke:#d7fe00;stroke-opacity:1;fill:none" />
+                    <path d="M %f,%f v %f" style="stroke:#d7fe00;stroke-opacity:1" id="l"/>
+                    <use xlink:href="#l" transform="rotate(120,%f,%f)" />
+                    <use xlink:href="#l" transform="rotate(-120,%f,%f)" />
+                    <path d="M %f,%f h %f" style="stroke-width:0.5;stroke:#d7fe00;stroke-opacity:1" transform="rotate(-45,%f,%f)" id="c"/>
+                    <use xlink:href="#c" transform="rotate(-90,%f,%f)"/>]],
+                            x, y, dotRadius, x, y-dotSize, dotRadius,
+                            x, y, x, y, x-dotRadius, y, dotSize, x, y, x, y)
                         newContent[#newContent + 1] = retrogradeDot
                         -- Draw a dot or whatever at x,y, it's inside the AH
                     end -- Don't draw an arrow for this one, only prograde is that important
@@ -377,16 +353,51 @@ function HudClass(Nav, c, u, s, atlas, antigrav, hover, shield, warpdrive, weapo
             if throtPosX == 0 and throtPosY == 0 then return end
             local ys = throtPosY-10 
             local x1 = throtPosX + 10
-            newContent[#newContent + 1] = svgText(0,0,"", "pdim txt txtend")
             if isRemote() and not RemoteHud then
                 ys = 75
             end
             newContent[#newContent + 1] = svgText( x1, ys, mfloor(spd).." km/h" , "pbright txtbig txtstart")
         end
         local ecuBlink = 40
+        local cachedVersionText = svgText(crx(150), cry(1070), stringf("ARCH Hud Version: %.3f", VERSION_NUMBER), "hudver")
+        -- Human-readable status code lookup for BrakeIsOn values
+        local statusLabels = {
+            ["BL Stop Dist"] = "Landing: Descent Controlled",
+            ["BL Stop BLR"] = "Landing: Rate Limited Descent",
+            ["BL Align Hzn"] = "Landing: Reducing Speed",
+            ["BL Align BLR"] = "Landing: Aligning to Heading",
+            ["BL AP Hzn"] = "Landing: Horizontal Approach",
+            ["BL hSpd"] = "Landing: Reducing Horizontal Speed",
+            ["BL BLR"] = "Landing: Rate Limited",
+            ["BL Slowing"] = "Landing: Final Slowdown",
+            ["BL Strong"] = "Landing: Emergency Brake",
+            ["BL Complete"] = "Landing Complete",
+            ["VTO Limit"] = "VTO: Limiting Ascent",
+            ["VTO Fall"] = "VTO: Recovering Lift",
+            ["VTO Complete"] = "VTO: Complete",
+            ["ATO Hold"] = "Takeoff: Holding",
+            ["ATO Agg Arrive"] = "Takeoff: AGG Altitude Reached",
+            ["ATO Space"] = "Takeoff: Exiting Atmosphere",
+            ["SpdLmt"] = "Speed Limit Braking",
+            ["Collision"] = "COLLISION AVOIDANCE",
+            ["Reentry Limit"] = "Reentry: Speed Limiting",
+            ["Reentry vSpd"] = "Reentry: Vertical Speed Check",
+            ["AP Brk"] = "Autopilot: Braking",
+            ["AP Finalizing"] = "Autopilot: Final Approach",
+            ["PvP Prevent"] = "PvP Boundary Protection",
+            ["Prevent PvP"] = "PvP Boundary Protection",
+            ["Space Arrival"] = "Arrived at Space Target",
+            ["Landing"] = "Landing in Progress",
+            ["AGG Hold"] = "AGG: Holding Altitude",
+            ["AGG Align"] = "AGG: Aligning",
+            ["Follow"] = "Follow Mode: Braking",
+            ["Follow Off"] = "Follow Mode: Disabled",
+            ["Manual"] = "Manual Brake",
+            ["ECU Braking"] = "ECU: Emergency Braking",
+        }
         local function DrawWarnings(newContent)
 
-            newContent[#newContent + 1] = svgText(crx(150), cry(1070), stringf("ARCH Hud Version: %.3f", VERSION_NUMBER), "hudver")
+            newContent[#newContent + 1] = cachedVersionText
             newContent[#newContent + 1] = [[<g class="warnings">]]
             if u.isMouseControlActivated() then
                 newContent[#newContent + 1] = svgText(crx(960), cry(550), "Warning: Invalid Control Scheme Detected", "warnings")
@@ -411,8 +422,8 @@ function HudClass(Nav, c, u, s, atlas, antigrav, hover, shield, warpdrive, weapo
 
             if BrakeIsOn then
                 local bkStr = ""
-                if type(BrakeIsOn) == "string" then bkStr="-"..BrakeIsOn end
-                newContent[#newContent + 1] = svgText(warningX, brakeY, "Brake Engaged"..bkStr, "warnings")
+                if type(BrakeIsOn) == "string" then bkStr = " - "..(statusLabels[BrakeIsOn] or BrakeIsOn) end
+                newContent[#newContent + 1] = svgText(warningX, brakeY, "Brakes"..bkStr, "warnings")
             elseif brakeInput2 > 0 then
                 newContent[#newContent + 1] = svgText(warningX, brakeY, "Auto-Brake Engaged", "warnings", "opacity:"..brakeInput2)
             end
@@ -453,10 +464,18 @@ function HudClass(Nav, c, u, s, atlas, antigrav, hover, shield, warpdrive, weapo
                 newContent[#newContent + 1] = svgText(warningX, hoverY,"Hover Height: ".. displayText,"warn") 
             end
 
+            if inAtmo and AtmoSpeedAssist and throttleMode then
+                local ptPct = mfloor(PlayerThrottle * 100)
+                local spdStr = stringf("Throttle: %d%% | Cruise: %d kph", ptPct, mfloor(adjustedAtmoSpeedLimit))
+                if ThrottleLimited then
+                    spdStr = spdStr.." (limited)"
+                end
+                newContent[#newContent + 1] = svgText(warningX, brakeY+20, spdStr, "warn")
+            end
             if isBoosting then
 
                 newContent[#newContent + 1] = svgText(warningX, ewarpY+20, "ROCKET BOOST ENABLED", "warn")
-            end           
+            end
 
             if antigrav and not ExternalAGG and antigravOn and AntigravTargetAltitude ~= nil then
 
@@ -466,12 +485,16 @@ function HudClass(Nav, c, u, s, atlas, antigrav, hover, shield, warpdrive, weapo
             end
             if Autopilot and AutopilotTargetName ~= "None" then
                 newContent[#newContent + 1] = svgText(warningX, apY,  "Autopilot "..AutopilotStatus, "warn")
+                if AutopilotStatus == "Aligning" and alignmentProgress < 0.99 then
+                    newContent[#newContent + 1] = svgText(warningX, apY+20, stringf("Aligning: %d%%", mfloor(alignmentProgress * 100)), "warn")
+                end
             elseif LockPitch ~= nil then
                 newContent[#newContent + 1] = svgText(warningX, apY+20, stringf("LockedPitch: %d", mfloor(LockPitch)), "warn")
             elseif followMode then
                 newContent[#newContent + 1] = svgText(warningX, apY+20, "Follow Mode Engaged", "warn")
             elseif Reentry or finalLand then
-                newContent[#newContent + 1] = svgText(warningX, apY+20, "Re-entry in Progress", "warn")
+                local reMode = reentryModePreference and "Glide" or "Parachute"
+                newContent[#newContent + 1] = svgText(warningX, apY+20, "Re-entry in Progress ("..reMode..")", "warn")
             end
             if AltitudeHold or VertTakeOff then
                 local displayText = getDistanceDisplayString(HoldAltitude, 2)
@@ -509,22 +532,41 @@ function HudClass(Nav, c, u, s, atlas, antigrav, hover, shield, warpdrive, weapo
             end
             if BrakeLanding then
                     local str = "Brake Landing"
-                    if alignHeading then str = str.."-Aligning" end
-                    if apBrk then str = str.."-Drift Limited" end
+                    if alignHeading then str = str.." - Aligning to Heading" end
+                    if apBrk then str = str.." - Drift Limited" end
                     newContent[#newContent + 1] = svgText(warningX, apY, str, "warnings")
+                    if landingGroundDist > 0 then
+                        local safeClass = landingSafe and "warn" or "warnings"
+                        local safeStr = landingSafe and "Safe" or "CLOSE"
+                        newContent[#newContent + 1] = svgText(warningX, apY+20,
+                            stringf("Stop: %s | Ground: %s | %s",
+                                getDistanceDisplayString(landingStopDist),
+                                getDistanceDisplayString(landingGroundDist),
+                                safeStr), safeClass)
+                    end
             end
             if ProgradeIsOn then
                 newContent[#newContent + 1] = svgText(warningX, apY+20, "Prograde Alignment", "crit")
+                if alignmentProgress < 0.99 then
+                    newContent[#newContent + 1] = svgText(warningX, apY+40, stringf("Aligning: %d%%", mfloor(alignmentProgress * 100)), "warn")
+                end
             end
             if RetrogradeIsOn then
                 newContent[#newContent + 1] = svgText(warningX, apY, "Retrograde Alignment", "crit")
+                if alignmentProgress < 0.99 then
+                    newContent[#newContent + 1] = svgText(warningX, apY+20, stringf("Aligning: %d%%", mfloor(alignmentProgress * 100)), "warn")
+                end
             end
 
             if collisionAlertStatus then
-
-                local type
-                if string.find(collisionAlertStatus, "COLLISION") then type = "warnings" else type = "crit" end
-                newContent[#newContent + 1] = svgText(warningX, turnBurnY+20, collisionAlertStatus, type)
+                local alertClass
+                if collisionTier >= 2 then alertClass = "warnings" else alertClass = "crit" end
+                local tierLabel = ""
+                if collisionTier == 1 then tierLabel = "CAUTION: "
+                elseif collisionTier == 2 then tierLabel = "WARNING: "
+                elseif collisionTier >= 3 then tierLabel = "EMERGENCY: "
+                end
+                newContent[#newContent + 1] = svgText(warningX, turnBurnY+20, tierLabel..collisionAlertStatus, alertClass)
             elseif atmosDensity == 0 and not Autopilot then
                 local intersectBody, atmoDistance = AP.checkLOS((constructVelocity):normalize())
                 if atmoDistance ~= nil and velMag > 0 then
@@ -539,7 +581,25 @@ function HudClass(Nav, c, u, s, atlas, antigrav, hover, shield, warpdrive, weapo
             if VectorToTarget and not IntoOrbit then
                 newContent[#newContent + 1] = svgText(warningX, apY+60, VectorStatus, "warn")
             end
-            if showHud and DisplayOdometer then 
+            -- Flight mode summary: compact line of all active systems
+            local modes = {}
+            if Autopilot then modes[#modes+1] = "AP" end
+            if AltitudeHold then modes[#modes+1] = "ALT" end
+            if VectorToTarget then modes[#modes+1] = "VEC" end
+            if IntoOrbit then modes[#modes+1] = "ORB" end
+            if BrakeLanding then modes[#modes+1] = "LAND" end
+            if VertTakeOff then modes[#modes+1] = "VTO" end
+            if AutoTakeoff then modes[#modes+1] = "ATO" end
+            if Reentry then modes[#modes+1] = "RE" end
+            if ProgradeIsOn then modes[#modes+1] = "PRO" end
+            if RetrogradeIsOn then modes[#modes+1] = "RET" end
+            if autoRoll then modes[#modes+1] = "AROL" end
+            if CollisionSystem then modes[#modes+1] = "COL" end
+            if AtmoSpeedAssist and throttleMode and inAtmo then modes[#modes+1] = "SPD" end
+            if #modes > 0 then
+                newContent[#newContent + 1] = svgText(warningX, cry(180), table.concat(modes, " | "), "dim")
+            end
+            if showHud and DisplayOdometer then
                 newContent[#newContent + 1] = odomButtons
             end
             return newContent
@@ -551,11 +611,13 @@ function HudClass(Nav, c, u, s, atlas, antigrav, hover, shield, warpdrive, weapo
 
         local function getAPName(index)
             local name = AutopilotTargetName
-            if index ~= nil and type(index) == "number" then 
+            if index ~= nil and type(index) == "number" then
                 if index == 0 then return "None" end
-                name = AtlasOrdered[index].name
+                if AtlasOrdered[index] then
+                    name = AtlasOrdered[index].name
+                end
             end
-            if name == nil then
+            if name == nil and CustomTarget then
                 name = CustomTarget.name
             end
             if name == nil then
@@ -806,8 +868,8 @@ function HudClass(Nav, c, u, s, atlas, antigrav, hover, shield, warpdrive, weapo
                     -- There is no apoapsis, which means we're escaping (or approaching)
                     -- The planet should end up on the far left and we show a line indicating how close they will pass/are to the planet
                     -- Or, render the Galaxymap very small
-                    local GalaxyMapHTML = "" -- No starting SVG tag so we can add it where we want it
-                    -- Figure out our scale here... 
+                    local galaxyParts = {} -- Use table to avoid O(n^2) string concat
+                    -- Figure out our scale here...
                     local xRatio = 1.2 * (maxAtlasX - minAtlasX) / (orbitMapSize*2) -- Add 10% for padding
                     local yRatio = 1.4 * (maxAtlasY - minAtlasY) / (orbitMapSize*1.5) -- Extra so we can get ion back in
                     for k, v in pairs(atlas[0]) do
@@ -815,13 +877,13 @@ function HudClass(Nav, c, u, s, atlas, antigrav, hover, shield, warpdrive, weapo
                             -- Draw a circle at the scaled coordinates
                             local x = orbitMapX + orbitMapSize + (v.center.x / xRatio)
                             local y = orbitMapY + orbitMapSize*1.5/2 + (v.center.y / yRatio)
-                            GalaxyMapHTML =
-                                GalaxyMapHTML .. '<circle cx="' .. x .. '" cy="' .. y .. '" r="' .. (v.radius / xRatio) * 30 ..
-                                    '" stroke="white" stroke-width="1" fill="blue" />'
+                            galaxyParts[#galaxyParts + 1] = stringf(
+                                '<circle cx="%f" cy="%f" r="%f" stroke="white" stroke-width="1" fill="blue" />',
+                                x, y, (v.radius / xRatio) * 30)
                             if not string.match(v.name, "Moon") and not string.match(v.name, "Sanctuary") and not string.match (v.name, "Space") then
-                                GalaxyMapHTML = GalaxyMapHTML .. "<text x='" .. x .. "' y='" .. y + (v.radius / xRatio) * 30 + 20 ..
-                                                    "' font-size='12' fill=" .. rgb .. " text-anchor='middle' font-family='Montserrat'>" ..
-                                                    v.name .. "</text>"
+                                galaxyParts[#galaxyParts + 1] = stringf(
+                                    "<text x='%f' y='%f' font-size='12' fill=%s text-anchor='middle' font-family='Montserrat'>%s</text>",
+                                    x, y + (v.radius / xRatio) * 30 + 20, rgb, v.name)
                             end
                         end
                     end
@@ -829,22 +891,21 @@ function HudClass(Nav, c, u, s, atlas, antigrav, hover, shield, warpdrive, weapo
                     local pos = vec3(C.getWorldPosition())
                     local x = orbitMapX + orbitMapSize + pos.x / xRatio
                     local y = orbitMapY + orbitMapSize*1.5/2 + pos.y / yRatio
-                    GalaxyMapHTML = GalaxyMapHTML .. '<circle cx="' .. x .. '" cy="' .. y ..
-                                        '" r="2" stroke="white" stroke-width="1" fill="red"/>'
-                    GalaxyMapHTML = GalaxyMapHTML .. "<text x='" .. x .. "' y='" .. y - 10 ..
-                                        "' font-size='14' fill='darkred' text-anchor='middle' font-family='Bank' font-weight='bold'>You Are Here</text>"
-                    
+                    galaxyParts[#galaxyParts + 1] = stringf(
+                        '<circle cx="%f" cy="%f" r="2" stroke="white" stroke-width="1" fill="red"/>', x, y)
+                    galaxyParts[#galaxyParts + 1] = stringf(
+                        "<text x='%f' y='%f' font-size='14' fill='darkred' text-anchor='middle' font-family='Bank' font-weight='bold'>You Are Here</text>",
+                        x, y - 10)
+
                     MapXRatio = xRatio
                     MapYRatio = yRatio
                     -- And, if we can, draw a velocity line
-                    -- We would need to project velocity on the plane of 0,0,1
-                    -- Or the simplest, laziest way.  Project the point they'd be at after a while
                     local futurePoint = pos + constructVelocity*1000000
                     local x2 = orbitMapX + orbitMapSize + futurePoint.x / xRatio
                     local y2 = orbitMapY + orbitMapSize*1.5/2 + futurePoint.y / yRatio
-                    GalaxyMapHTML = GalaxyMapHTML .. '<line x1="' .. x .. '" y1="' .. y ..
-                                        '" x2="' .. x2 .. '" y2="' .. y2 .. '" stroke="purple" stroke-width="1"/>'
-                    newContent[#newContent + 1] = GalaxyMapHTML
+                    galaxyParts[#galaxyParts + 1] = stringf(
+                        '<line x1="%f" y1="%f" x2="%f" y2="%f" stroke="purple" stroke-width="1"/>', x, y, x2, y2)
+                    newContent[#newContent + 1] = table.concat(galaxyParts)
                     newContent[#newContent + 1] = '</g>'
                 end
             elseif SelectedTab == "INFO" then
@@ -888,8 +949,9 @@ function HudClass(Nav, c, u, s, atlas, antigrav, hover, shield, warpdrive, weapo
                     local targetN = target:normalize()
                    
                     local horizontalRight = target:cross(cameraForward):normalize()
-                    local rollRad = math.acos(horizontalRight:dot(cameraRight))
-                    if rollRad ~= rollRad then rollRad = 0 end -- I don't know why this would fail but it does... so this fixes it... 
+                    local dotVal = horizontalRight:dot(cameraRight)
+                    dotVal = dotVal > 1 and 1 or (dotVal < -1 and -1 or dotVal)
+                    local rollRad = math.acos(dotVal)
                     if horizontalRight:cross(cameraRight):dot(cameraForward) < 0 then rollRad = -rollRad end
 
                     local flatlen = target:project_on_plane(cameraForward):len()
@@ -912,12 +974,12 @@ function HudClass(Nav, c, u, s, atlas, antigrav, hover, shield, warpdrive, weapo
                     local cursorDistance = ((x-orbitMidX)*(x-orbitMidX))+((y-orbitMidY)*(y-orbitMidY))
                     
                     -- Get the view angle from the center to the edge of a planet using trig
-                    local topAngle = math.asin((v.radius+v.surfaceMaxAltitude)/targetDistance)*constants.rad2deg
-                    if topAngle ~= topAngle then topAngle = fov end
+                    local topSin = (v.radius+v.surfaceMaxAltitude)/targetDistance
+                    local topAngle = (topSin <= 1) and math.asin(topSin)*constants.rad2deg or fov
                     local size = topAngle/fov*orbitMapHeight
 
-                    local atmoAngle = math.asin((v.atmosphereRadius)/targetDistance)*constants.rad2deg
-                    if atmoAngle ~= atmoAngle then atmoAngle = topAngle end -- hide atmo if inside it
+                    local atmoSin = (v.atmosphereRadius)/targetDistance
+                    local atmoAngle = (atmoSin <= 1) and math.asin(atmoSin)*constants.rad2deg or topAngle
                     local atmoSize = atmoAngle/fov*orbitMapHeight
 
                     local distance = getDistanceDisplayString(targetDistance,1)
@@ -1145,8 +1207,9 @@ function HudClass(Nav, c, u, s, atlas, antigrav, hover, shield, warpdrive, weapo
                     local targetN = target:normalize()
                     local flatlen = target:project_on_plane(cameraForward):len()
                     local horizontalRight = target:cross(cameraForward):normalize()
-                    local rollRad = math.acos(horizontalRight:dot(cameraRight))
-                    if rollRad ~= rollRad then rollRad = 0 end -- Again, idk how this could happen but it does
+                    local dotVal2 = horizontalRight:dot(cameraRight)
+                    dotVal2 = dotVal2 > 1 and 1 or (dotVal2 < -1 and -1 or dotVal2)
+                    local rollRad = math.acos(dotVal2)
                     if horizontalRight:cross(cameraRight):dot(cameraForward) < 0 then rollRad = -rollRad end
                     local xAngle = math.sin(rollRad)*math.asin(flatlen/target:len())*constants.rad2deg
                     local yAngle = math.cos(rollRad)*math.asin(flatlen/target:len())*constants.rad2deg
@@ -1163,26 +1226,14 @@ function HudClass(Nav, c, u, s, atlas, antigrav, hover, shield, warpdrive, weapo
                     local y = orbitMidY + (yAngle/fov)*orbitMapHeight
                     local dotSize = 14
                     local dotRadius = dotSize/2
-                    -- TODO: stringf
-                    local progradeDot = [[<circle
-                        cx="]] .. x .. [["
-                        cy="]] .. y .. [["
-                        r="]] .. dotRadius/dotSize .. [["
-                        style="fill:#d7fe00;stroke:none;fill-opacity:1"/>
-                    <circle
-                        cx="]] .. x .. [["
-                        cy="]] .. y .. [["
-                        r="]] .. dotRadius .. [["
-                        style="stroke:#d7fe00;stroke-opacity:1;fill:none" />
-                    <path
-                        d="M ]] .. x-dotSize .. [[,]] .. y .. [[ h ]] .. dotRadius .. [["
-                        style="stroke:#d7fe00;stroke-opacity:1" />
-                    <path
-                        d="M ]] .. x+dotRadius .. [[,]] .. y .. [[ h ]] .. dotRadius .. [["
-                        style="stroke:#d7fe00;stroke-opacity:1" />
-                    <path
-                        d="M ]] .. x .. [[,]] .. y-dotSize .. [[ v ]] .. dotRadius .. [["
-                        style="stroke:#d7fe00;stroke-opacity:1" />]]
+                    local progradeDot = stringf([[<circle cx="%f" cy="%f" r="%f" style="fill:#d7fe00;stroke:none;fill-opacity:1"/>
+                    <circle cx="%f" cy="%f" r="%f" style="stroke:#d7fe00;stroke-opacity:1;fill:none" />
+                    <path d="M %f,%f h %f" style="stroke:#d7fe00;stroke-opacity:1" />
+                    <path d="M %f,%f h %f" style="stroke:#d7fe00;stroke-opacity:1" />
+                    <path d="M %f,%f v %f" style="stroke:#d7fe00;stroke-opacity:1" />]],
+                            x, y, dotRadius/dotSize, x, y, dotRadius,
+                            x-dotSize, y, dotRadius, x+dotRadius, y, dotRadius,
+                            x, y-dotSize, dotRadius)
                     newContent[#newContent + 1] = progradeDot
                 end
                 --Add a + to mark the center
@@ -1513,13 +1564,13 @@ function HudClass(Nav, c, u, s, atlas, antigrav, hover, shield, warpdrive, weapo
                 function() return AutopilotTargetIndex > 0 and CustomTarget ~= nil
                 end)
             MakeButton("Save Heading", "Clear Heading", 200, apbutton.height, apbutton.x + apbutton.width + 30, apbutton.y + apbutton.height + 20,
-                function() return CustomTarget.heading ~= nil end, 
-                function() if CustomTarget.heading ~= nil then UpdatePosition(false) else UpdatePosition(true) end end, 
+                function() return CustomTarget ~= nil and CustomTarget.heading ~= nil end,
+                function() if CustomTarget and CustomTarget.heading ~= nil then UpdatePosition(false) else UpdatePosition(true) end end,
                 function() return AutopilotTargetIndex > 0 and CustomTarget ~= nil
                 end)
             MakeButton("Save AGG Alt", "Clear AGG Alt", 200, apbutton.height, apbutton.x + apbutton.width + 30, apbutton.y + apbutton.height*2 + 40,
-                function() return CustomTarget.agg ~= nil end, 
-                function() if CustomTarget.agg ~= nil then UpdatePosition(nil, false) else UpdatePosition(nil, true) end end, 
+                function() return CustomTarget ~= nil and CustomTarget.agg ~= nil end,
+                function() if CustomTarget and CustomTarget.agg ~= nil then UpdatePosition(nil, false) else UpdatePosition(nil, true) end end,
                 function() return AutopilotTargetIndex > 0 and CustomTarget ~= nil and antigrav
                 end)
             MakeButton("Clear Position", "Clear Position", 200, apbutton.height, apbutton.x - 200 - 30, apbutton.y,
@@ -1587,7 +1638,7 @@ function HudClass(Nav, c, u, s, atlas, antigrav, hover, shield, warpdrive, weapo
                     if (repairArrows) then
                         msg ("Repair Arrows Enabled")
                     else
-                        msg ("Repair Arrows Diabled")
+                        msg ("Repair Arrows Disabled")
                     end
                 end, function()
                     return isRemote() 
@@ -1673,9 +1724,11 @@ function HudClass(Nav, c, u, s, atlas, antigrav, hover, shield, warpdrive, weapo
             if horizonRadius > 0 then
                 local pitchC = mfloor(originalPitch)
                 local len = 0
-                local tickerPath = stringf([[<path transform="rotate(%f,%d,%d)" class="dim line" d="]], (-1 * originalRoll), centerX, centerY)
-                if not inAtmo then
-                    tickerPath = stringf([[<path transform="rotate(0,%d,%d)" class="dim line" d="]], centerX, centerY)
+                local pathParts = {}
+                if inAtmo then
+                    pathParts[1] = stringf([[<path transform="rotate(%f,%d,%d)" class="dim line" d="]], (-1 * originalRoll), centerX, centerY)
+                else
+                    pathParts[1] = stringf([[<path transform="rotate(0,%d,%d)" class="dim line" d="]], centerX, centerY)
                 end
                 newContent[#newContent + 1] = stringf([[<clipPath id="cut"><circle r="%f" cx="%d" cy="%d"/></clipPath>]],(horizonRadius - 1), centerX, centerY)
                 newContent[#newContent + 1] = [[<g class="dim txttick" clip-path="url(#cut)">]]
@@ -1687,25 +1740,26 @@ function HudClass(Nav, c, u, s, atlas, antigrav, hover, shield, warpdrive, weapo
                     end
                     local y = centerY + (-i * 5 + originalPitch * 5)
                     if len == 30 then
-                        tickerPath = stringf([[%s M %d %f h %d]], tickerPath, centerX-pitchX-len, y, len)
+                        pathParts[#pathParts + 1] = stringf([[ M %d %f h %d]], centerX-pitchX-len, y, len)
                         if inAtmo then
                             newContent[#newContent + 1] = stringf([[<g path transform="rotate(%f,%d,%d)" class="pdim txt txtmid"><text x="%d" y="%f">%d</text></g>]],(-1 * originalRoll), centerX, centerY, centerX-pitchX+10, y+4, i)
                             newContent[#newContent + 1] = stringf([[<g path transform="rotate(%f,%d,%d)" class="pdim txt txtmid"><text x="%d" y="%f">%d</text></g>]],(-1 * originalRoll), centerX, centerY, centerX+pitchX-10, y+4, i)
-                            if i == 0 or i == 180 or i == -180 then 
+                            if i == 0 or i == 180 or i == -180 then
                                 newContent[#newContent + 1] = stringf([[<path transform="rotate(%f,%d,%d)" d="m %d,%f %d,0" stroke-width="1" style="fill:none;stroke:#F5B800;" />]],
                                     (-1 * originalRoll), centerX, centerY, centerX-pitchX+20, y, pitchX*2-40)
                             end
                         else
                             newContent[#newContent + 1] = svgText(centerX-pitchX+10, y, i, "pdim txt txtmid")
                             newContent[#newContent + 1] = svgText(centerX+pitchX-10, y, i , "pdim txt txtmid")
-                        end                            
-                        tickerPath = stringf([[%s M %d %f h %d]], tickerPath, centerX+pitchX, y, len)
+                        end
+                        pathParts[#pathParts + 1] = stringf([[ M %d %f h %d]], centerX+pitchX, y, len)
                     else
-                        tickerPath = stringf([[%s M %d %f h %d]], tickerPath, centerX-pitchX-len, y, len)
-                        tickerPath = stringf([[%s M %d %f h %d]], tickerPath, centerX+pitchX, y, len)
+                        pathParts[#pathParts + 1] = stringf([[ M %d %f h %d]], centerX-pitchX-len, y, len)
+                        pathParts[#pathParts + 1] = stringf([[ M %d %f h %d]], centerX+pitchX, y, len)
                     end
                 end
-                newContent[#newContent + 1] = tickerPath .. [["/>]]
+                pathParts[#pathParts + 1] = [["/>]]
+                newContent[#newContent + 1] = table.concat(pathParts)
                 local pitchstring = "PITCH"                
                 if not nearPlanet then 
                     pitchstring = "REL PITCH"
@@ -1725,9 +1779,9 @@ function HudClass(Nav, c, u, s, atlas, antigrav, hover, shield, warpdrive, weapo
                     else
                         newContent[#newContent + 1] = stringf([[<g transform="rotate(0,%d,%d)">]], centerX, centerY)
                     end
-                    newContent[#newContent + 1] = stringf([[<<polygon points="%d,%d %d,%d %d,%d"/> class="pdim txtend"><text x="%d" y="%f">%d</text>]],
+                    newContent[#newContent + 1] = stringf([[<polygon points="%d,%d %d,%d %d,%d" class="pdim"/><text x="%d" y="%f" class="pdim txtend">%d</text>]],
                     centerX-pitchX+25, centerY-5, centerX-pitchX+20, centerY, centerX-pitchX+25, centerY+5, centerX-pitchX+50, centerY+4, pitchC)
-                    newContent[#newContent + 1] = stringf([[<<polygon points="%d,%d %d,%d %d,%d"/> class="pdim txtend"><text x="%d" y="%f">%d</text>]],
+                    newContent[#newContent + 1] = stringf([[<polygon points="%d,%d %d,%d %d,%d" class="pdim"/><text x="%d" y="%f" class="pdim txtend">%d</text>]],
                     centerX+pitchX-25, centerY-5, centerX+pitchX-20, centerY, centerX+pitchX-25, centerY+5, centerX+pitchX-30, centerY+4, pitchC)
                     newContent[#newContent +1] = "</g>"
                 end
@@ -1785,7 +1839,7 @@ function HudClass(Nav, c, u, s, atlas, antigrav, hover, shield, warpdrive, weapo
                 newContent[#newContent + 1] = svgText(centerX, centerY+horizonRadius+OFFSET-35, bottomText, "pdim txt txtmid")
                 newContent[#newContent + 1] = svgText(centerX, centerY+horizonRadius+OFFSET-25, rollC.." deg", "pdim txt txtmid")
                 newContent[#newContent + 1] = stringf([[<g transform="rotate(%f,%d,%d)">]], -originalRoll, centerX, centerY)
-                newContent[#newContent + 1] = stringf([[<<polygon points="%d,%d %d,%d %d,%d"/>]],
+                newContent[#newContent + 1] = stringf([[<polygon points="%d,%d %d,%d %d,%d"/>]],
                     centerX-5, centerY+horizonRadius+OFFSET-20, centerX+5, centerY+horizonRadius+OFFSET-20, centerX, centerY+horizonRadius+OFFSET-15)
                 newContent[#newContent +1] = "</g>"
             end
@@ -1801,17 +1855,17 @@ function HudClass(Nav, c, u, s, atlas, antigrav, hover, shield, warpdrive, weapo
                 yawy = cry(130)
                 yawx = crx(960)
             end
-            local tickerPath = [[<path class="txttick line" d="]]
+            local yawParts = {[[<path class="txttick line" d="]]}
             local degRange = mfloor(yawC - (range+10) - yawC % 5 + 0.5)
             for i = degRange+70, degRange, -5 do
                 local x = yawx - (-i * 5 + yaw * 5)
                 if (i % 10 == 0) then
                     yawlen = 10
                     local num = i
-                    if num == 360 then 
+                    if num == 360 then
                         num = 0
-                    elseif num  > 360 then  
-                        num = num - 360 
+                    elseif num  > 360 then
+                        num = num - 360
                     elseif num < 0 then
                         num = num + 360
                     end
@@ -1820,13 +1874,14 @@ function HudClass(Nav, c, u, s, atlas, antigrav, hover, shield, warpdrive, weapo
                     yawlen = 5
                 end
                 if yawlen == 10 then
-                    tickerPath = stringf([[%s M %f %f v %d]], tickerPath, x, yawy-5, yawlen)
+                    yawParts[#yawParts + 1] = stringf([[ M %f %f v %d]], x, yawy-5, yawlen)
                 else
-                    tickerPath = stringf([[%s M %f %f v %d]], tickerPath, x, yawy-2.5, yawlen)
+                    yawParts[#yawParts + 1] = stringf([[ M %f %f v %d]], x, yawy-2.5, yawlen)
                 end
             end
-            newContent[#newContent + 1] = tickerPath .. [["/>]]
-            newContent[#newContent + 1] = stringf([[<<polygon class="bright" points="%d,%d %d,%d %d,%d"/>]],
+            yawParts[#yawParts + 1] = [["/>]]
+            newContent[#newContent + 1] = table.concat(yawParts)
+            newContent[#newContent + 1] = stringf([[<polygon class="bright" points="%d,%d %d,%d %d,%d"/>]],
                 yawx-5, yawy-20, yawx+5, yawy-20, yawx, yawy-10)
             --if DisplayOdometer then 
                 if nearPlanet then bottomText = "HDG" end
@@ -2033,6 +2088,9 @@ function HudClass(Nav, c, u, s, atlas, antigrav, hover, shield, warpdrive, weapo
                     end
                 end
             end
+            local cachedPrologue = nil
+            local cachedProloguePvP = nil
+            local cachedPrologueFreeLook = nil
             local function HUDPrologue(newContent)
                 if not notPvPZone then -- misnamed variable, fix later
                     PrimaryR = PvPR
@@ -2044,25 +2102,31 @@ function HudClass(Nav, c, u, s, atlas, antigrav, hover, shield, warpdrive, weapo
                     PrimaryB = SafeB
                 end
                 rgb = [[rgb(]] .. mfloor(PrimaryR + 0.6) .. "," .. mfloor(PrimaryG + 0.6) .. "," .. mfloor(PrimaryB + 0.6) .. [[)]]
-                rgbdim = [[rgb(]] .. mfloor(PrimaryR * 0.8 + 0.5) .. "," .. mfloor(PrimaryG * 0.8 + 0.5) .. "," ..   mfloor(PrimaryB * 0.8 + 0.5) .. [[)]]    
-                local bright = rgb
-                local dim = rgbdim
-                local dimmer = [[rgb(]] .. mfloor(PrimaryR * 0.4 + 0.5) .. "," .. mfloor(PrimaryG * 0.4 + 0.5) .. "," ..   mfloor(PrimaryB * 0.4 + 0.5) .. [[)]]   
-                local brightOrig = rgb
-                local dimOrig = rgbdim
-                local dimmerOrig = dimmer
-                if IsInFreeLook() and not brightHud then
-                    bright = [[rgb(]] .. mfloor(PrimaryR * 0.5 + 0.5) .. "," .. mfloor(PrimaryG * 0.5 + 0.5) .. "," ..
-                                mfloor(PrimaryB * 0.5 + 0.5) .. [[)]]
-                    dim = [[rgb(]] .. mfloor(PrimaryR * 0.3 + 0.5) .. "," .. mfloor(PrimaryG * 0.3 + 0.5) .. "," ..
-                            mfloor(PrimaryB * 0.2 + 0.5) .. [[)]]
-                    dimmer = [[rgb(]] .. mfloor(PrimaryR * 0.2 + 0.5) .. "," .. mfloor(PrimaryG * 0.2 + 0.5) .. "," ..   mfloor(PrimaryB * 0.2 + 0.5) .. [[)]]                        
-                end
-        
-                -- When applying styles, apply color first, then type (e.g. "bright line")
-                -- so that "fill:none" gets applied
+                rgbdim = [[rgb(]] .. mfloor(PrimaryR * 0.8 + 0.5) .. "," .. mfloor(PrimaryG * 0.8 + 0.5) .. "," ..   mfloor(PrimaryB * 0.8 + 0.5) .. [[)]]
+                local isFreeLook = IsInFreeLook() and not brightHud
+                -- Only rebuild the massive CSS string when PvP zone or freelook state changes
+                if cachedPrologue == nil or cachedProloguePvP ~= notPvPZone or cachedPrologueFreeLook ~= isFreeLook then
+                    local bright = rgb
+                    local dim = rgbdim
+                    local dimmer = [[rgb(]] .. mfloor(PrimaryR * 0.4 + 0.5) .. "," .. mfloor(PrimaryG * 0.4 + 0.5) .. "," ..   mfloor(PrimaryB * 0.4 + 0.5) .. [[)]]
+                    local brightOrig = rgb
+                    local dimOrig = rgbdim
+                    local dimmerOrig = dimmer
+                    if isFreeLook then
+                        bright = [[rgb(]] .. mfloor(PrimaryR * 0.5 + 0.5) .. "," .. mfloor(PrimaryG * 0.5 + 0.5) .. "," ..
+                                    mfloor(PrimaryB * 0.5 + 0.5) .. [[)]]
+                        dim = [[rgb(]] .. mfloor(PrimaryR * 0.3 + 0.5) .. "," .. mfloor(PrimaryG * 0.3 + 0.5) .. "," ..
+                                mfloor(PrimaryB * 0.2 + 0.5) .. [[)]]
+                        dimmer = [[rgb(]] .. mfloor(PrimaryR * 0.2 + 0.5) .. "," .. mfloor(PrimaryG * 0.2 + 0.5) .. "," ..   mfloor(PrimaryB * 0.2 + 0.5) .. [[)]]
+                    end
 
-                    newContent[#newContent + 1] = stringf([[ <head> <style>body{margin: 0}svg{position:absolute;top:0;left:0;font-family:Montserrat;}.txt{font-size:10px;font-weight:bold;}.txttick{font-size:12px;font-weight:bold;}.txtbig{font-size:14px;font-weight:bold;}.altsm{font-size:16px;font-weight:normal;}.altbig{font-size:21px;font-weight:normal;}.line{stroke-width:2px;fill:none;stroke:%s}.linethick{stroke-width:3px;fill:none}.linethin{stroke-width:1px;fill:none}.warnings{font-size:26px;fill:red;text-anchor:middle;font-family:Bank;}.warn{fill:orange; font-size:24px}.crit{fill:darkred;font-size:28px}.bright{fill:%s;stroke:%s}text.bright{stroke:black; stroke-width:10px;paint-order:stroke;}.pbright{fill:%s;stroke:%s}text.pbright{stroke:black; stroke-width:10px;paint-order:stroke;}.dim{fill:%s;stroke:%s}text.dim{stroke:black; stroke-width:10px;paint-order:stroke;}.pdim{fill:%s;stroke:%s}text.pdim{stroke:black; stroke-width:10px;paint-order:stroke;}.red{fill:red;stroke:red}text.red{stroke:black; stroke-width:10px;paint-order:stroke;}.orange{fill:orange;stroke:orange}text.orange{stroke:black; stroke-width:10px;paint-order:stroke;}.redout{fill:none;stroke:red}.op30{opacity:0.3}.op10{opacity:0.1}.txtstart{text-anchor:start}.txtend{text-anchor:end}.txtmid{text-anchor:middle}.txtvspd{font-family:sans-serif;font-weight:normal}.txtvspdval{font-size:20px}.txtfuel{font-size:11px;font-weight:bold}.txtorb{font-size:12px}.txtorbbig{font-size:18px}.hudver{font-size:10px;font-weight:bold;fill:red;text-anchor:end;font-family:Bank}.msg{font-size:40px;fill:red;text-anchor:middle;font-weight:normal}.cursor{stroke:white}text{stroke:black; stroke-width:10px;paint-order:stroke;}.dimstroke{stroke:%s}.brightstroke{stroke:%s}.indicatorText{font-size:20px;fill:white}.size14{font-size:14px}.size20{font-size:20px}.topButton{fill:%s;opacity:0.5;stroke-width:2;stroke:%s}.topButtonActive{fill:url(#RadialGradientCenter);opacity:0.8;stroke-width:2;stroke:%s}.topButton text{font-size:13px; fill: %s; opacity:1; stroke-width:20px}.topButtonActive text{font-size:13px;fill:%s; stroke-width:0px; opacity:1}.indicatorFont{font-size:20px;font-family:Bank}.dimmer{stroke: %s;}.pdimfill{fill: %s;}.dimfill{fill: %s;}</style> </head> <body> <svg height="100%%" width="100%%" viewBox="0 0 %d %d"> <defs> <radialGradient id="RadialGradientCenterTop" cx="0.5" cy="0" r="1"> <stop offset="0%%" stop-color="%s" stop-opacity="0.5"/> <stop offset="100%%" stop-color="black" stop-opacity="0"/> </radialGradient> <radialGradient id="RadialGradientRightTop" cx="1" cy="0" r="1"> <stop offset="0%%" stop-color="%s" stop-opacity="0.5"/> <stop offset="200%%" stop-color="black" stop-opacity="0"/> </radialGradient> <radialGradient id="ThinRightTopGradient" cx="1" cy="0" r="1"> <stop offset="0%%" stop-color="%s" stop-opacity="0.2"/> <stop offset="200%%" stop-color="black" stop-opacity="0"/> </radialGradient> <radialGradient id="RadialGradientLeftTop" cx="0" cy="0" r="1"> <stop offset="0%%" stop-color="%s" stop-opacity="0.5"/> <stop offset="200%%" stop-color="black" stop-opacity="0"/> </radialGradient> <radialGradient id="ThinLeftTopGradient" cx="0" cy="0" r="1"> <stop offset="0%%" stop-color="%s" stop-opacity="0.2"/> <stop offset="200%%" stop-color="black" stop-opacity="0"/> </radialGradient> <radialGradient id="RadialGradientCenter" cx="0.5" cy="0.5" r="1"> <stop offset="0%%" stop-color="%s" stop-opacity="0.8"/> <stop offset="100%%" stop-color="%s" stop-opacity="0.5"/> </radialGradient> <radialGradient id="RadialPlanetCenter" cx="0.5" cy="0.5" r="0.5"> <stop offset="0%%" stop-color="%s" stop-opacity="1"/> <stop offset="100%%" stop-color="%s" stop-opacity="1"/> </radialGradient> <radialGradient id="RadialAtmo" cx="0.5" cy="0.5" r="0.5"> <stop offset="0%%" stop-color="%s" stop-opacity="1"/> <stop offset="66%%" stop-color="%s" stop-opacity="1"/> <stop offset="100%%" stop-color="%s" stop-opacity="0.1"/> </radialGradient> </defs> <g class="pdim txt txtend">]], bright, bright, bright, brightOrig, brightOrig, dim, dim, dimOrig, dimOrig,dim,bright,dimmer,dimOrig,bright,bright,dimmer,dimmer, dimmerOrig,dimmer, ResolutionX, ResolutionY, dim,dim,dim,dim,dim,brightOrig,dim,dimOrig, dimmerOrig, dimOrig, dimOrig, dimmerOrig)
+                    -- When applying styles, apply color first, then type (e.g. "bright line")
+                    -- so that "fill:none" gets applied
+                    cachedPrologue = stringf([[ <head> <style>body{margin: 0}svg{position:absolute;top:0;left:0;font-family:Montserrat;}.txt{font-size:10px;font-weight:bold;}.txttick{font-size:12px;font-weight:bold;}.txtbig{font-size:14px;font-weight:bold;}.altsm{font-size:16px;font-weight:normal;}.altbig{font-size:21px;font-weight:normal;}.line{stroke-width:2px;fill:none;stroke:%s}.linethick{stroke-width:3px;fill:none}.linethin{stroke-width:1px;fill:none}.warnings{font-size:26px;fill:red;text-anchor:middle;font-family:Bank;}.warn{fill:orange; font-size:24px}.crit{fill:darkred;font-size:28px}.bright{fill:%s;stroke:%s}text.bright{stroke:black; stroke-width:10px;paint-order:stroke;}.pbright{fill:%s;stroke:%s}text.pbright{stroke:black; stroke-width:10px;paint-order:stroke;}.dim{fill:%s;stroke:%s}text.dim{stroke:black; stroke-width:10px;paint-order:stroke;}.pdim{fill:%s;stroke:%s}text.pdim{stroke:black; stroke-width:10px;paint-order:stroke;}.red{fill:red;stroke:red}text.red{stroke:black; stroke-width:10px;paint-order:stroke;}.orange{fill:orange;stroke:orange}text.orange{stroke:black; stroke-width:10px;paint-order:stroke;}.redout{fill:none;stroke:red}.op30{opacity:0.3}.op10{opacity:0.1}.txtstart{text-anchor:start}.txtend{text-anchor:end}.txtmid{text-anchor:middle}.txtvspd{font-family:sans-serif;font-weight:normal}.txtvspdval{font-size:20px}.txtfuel{font-size:11px;font-weight:bold}.txtorb{font-size:12px}.txtorbbig{font-size:18px}.hudver{font-size:10px;font-weight:bold;fill:red;text-anchor:end;font-family:Bank}.msg{font-size:40px;fill:red;text-anchor:middle;font-weight:normal}.cursor{stroke:white}text{stroke:black; stroke-width:10px;paint-order:stroke;}.dimstroke{stroke:%s}.brightstroke{stroke:%s}.indicatorText{font-size:20px;fill:white}.size14{font-size:14px}.size20{font-size:20px}.topButton{fill:%s;opacity:0.5;stroke-width:2;stroke:%s}.topButtonActive{fill:url(#RadialGradientCenter);opacity:0.8;stroke-width:2;stroke:%s}.topButton text{font-size:13px; fill: %s; opacity:1; stroke-width:20px}.topButtonActive text{font-size:13px;fill:%s; stroke-width:0px; opacity:1}.indicatorFont{font-size:20px;font-family:Bank}.dimmer{stroke: %s;}.pdimfill{fill: %s;}.dimfill{fill: %s;}</style> </head> <body> <svg height="100%%" width="100%%" viewBox="0 0 %d %d"> <defs> <radialGradient id="RadialGradientCenterTop" cx="0.5" cy="0" r="1"> <stop offset="0%%" stop-color="%s" stop-opacity="0.5"/> <stop offset="100%%" stop-color="black" stop-opacity="0"/> </radialGradient> <radialGradient id="RadialGradientRightTop" cx="1" cy="0" r="1"> <stop offset="0%%" stop-color="%s" stop-opacity="0.5"/> <stop offset="200%%" stop-color="black" stop-opacity="0"/> </radialGradient> <radialGradient id="ThinRightTopGradient" cx="1" cy="0" r="1"> <stop offset="0%%" stop-color="%s" stop-opacity="0.2"/> <stop offset="200%%" stop-color="black" stop-opacity="0"/> </radialGradient> <radialGradient id="RadialGradientLeftTop" cx="0" cy="0" r="1"> <stop offset="0%%" stop-color="%s" stop-opacity="0.5"/> <stop offset="200%%" stop-color="black" stop-opacity="0"/> </radialGradient> <radialGradient id="ThinLeftTopGradient" cx="0" cy="0" r="1"> <stop offset="0%%" stop-color="%s" stop-opacity="0.2"/> <stop offset="200%%" stop-color="black" stop-opacity="0"/> </radialGradient> <radialGradient id="RadialGradientCenter" cx="0.5" cy="0.5" r="1"> <stop offset="0%%" stop-color="%s" stop-opacity="0.8"/> <stop offset="100%%" stop-color="%s" stop-opacity="0.5"/> </radialGradient> <radialGradient id="RadialPlanetCenter" cx="0.5" cy="0.5" r="0.5"> <stop offset="0%%" stop-color="%s" stop-opacity="1"/> <stop offset="100%%" stop-color="%s" stop-opacity="1"/> </radialGradient> <radialGradient id="RadialAtmo" cx="0.5" cy="0.5" r="0.5"> <stop offset="0%%" stop-color="%s" stop-opacity="1"/> <stop offset="66%%" stop-color="%s" stop-opacity="1"/> <stop offset="100%%" stop-color="%s" stop-opacity="0.1"/> </radialGradient> </defs> <g class="pdim txt txtend">]], bright, bright, bright, brightOrig, brightOrig, dim, dim, dimOrig, dimOrig,dim,bright,dimmer,dimOrig,bright,bright,dimmer,dimmer, dimmerOrig,dimmer, ResolutionX, ResolutionY, dim,dim,dim,dim,dim,brightOrig,dim,dimOrig, dimmerOrig, dimOrig, dimOrig, dimmerOrig)
+                    cachedProloguePvP = notPvPZone
+                    cachedPrologueFreeLook = isFreeLook
+                end
+                newContent[#newContent + 1] = cachedPrologue
         
                 
 
@@ -2314,7 +2378,7 @@ function HudClass(Nav, c, u, s, atlas, antigrav, hover, shield, warpdrive, weapo
 
                                 fuelMass = (eleMass(tankTable[i][tankID]) - tankTable[i][tankMassEmpty])
                                 fuelMassLast = tankTable[i][tankLastMass]
-                                local usedFuel = fuelMassLast > fuelMass or false
+                                local usedFuel = fuelMassLast ~= nil and fuelMassLast > fuelMass
                                 if usedFuel then 
                                     fuelUsed[slottedTankType] = fuelUsed[slottedTankType]+(fuelMassLast - fuelMass) 
                                 end
@@ -2400,6 +2464,7 @@ function HudClass(Nav, c, u, s, atlas, antigrav, hover, shield, warpdrive, weapo
 
                     tankY = y1
                 end
+                local previous = nil
                 -- FUEL TANKS
                 if (fuelX ~= 0 and fuelY ~= 0) then
                     tankMessage = svgText(fuelX, fuelY, "", "txtstart pdim txtfuel")
@@ -2508,17 +2573,17 @@ function HudClass(Nav, c, u, s, atlas, antigrav, hover, shield, warpdrive, weapo
                     end
                 end
                 if not inAtmo and WasInAtmo then
-                    if sysUpData(widgetMaxBrakeTimeText, widgetMaxBrakeTime)  then
+                    if not sysUpData(widgetMaxBrakeTimeText, widgetMaxBrakeTime) then
                         sysAddData(widgetMaxBrakeTimeText, widgetMaxBrakeTime) end
-                    if sysUpData(widgetMaxBrakeTimeText, widgetStopSpeed)  then
+                    if not sysUpData(widgetStopSpeedText, widgetStopSpeed) then
                         sysAddData(widgetStopSpeedText, widgetStopSpeed) end
-                    if sysUpData(widgetMaxBrakeDistanceText, widgetMaxBrakeDistance)  then
+                    if not sysUpData(widgetMaxBrakeDistanceText, widgetMaxBrakeDistance) then
                         sysAddData(widgetMaxBrakeDistanceText, widgetMaxBrakeDistance) end
-                    if sysUpData(widgetCurBrakeTimeText, widgetCurBrakeTime)  then
+                    if not sysUpData(widgetCurBrakeTimeText, widgetCurBrakeTime) then
                         sysAddData(widgetCurBrakeTimeText, widgetCurBrakeTime) end
-                    if sysUpData(widgetCurBrakeDistanceText, widgetCurBrakeDistance)  then
+                    if not sysUpData(widgetCurBrakeDistanceText, widgetCurBrakeDistance) then
                         sysAddData(widgetCurBrakeDistanceText, widgetCurBrakeDistance) end
-                    if sysUpData(widgetTrajectoryAltitudeText, widgetTrajectoryAltitude) then
+                    if not sysUpData(widgetTrajectoryAltitudeText, widgetTrajectoryAltitude) then
                         sysAddData(widgetTrajectoryAltitudeText, widgetTrajectoryAltitude) end
                     WasInAtmo = false
                 end
@@ -2583,7 +2648,7 @@ function HudClass(Nav, c, u, s, atlas, antigrav, hover, shield, warpdrive, weapo
                     end
                     -- Thanks to Jerico for the help and code starter for arrow markers!
                     if repairArrows and #markers == 0 then
-                        position = vec3(c.getElementPositionById(elementsID[k]))
+                        local position = vec3(c.getElementPositionById(elementsID[k]))
                         local x = position.x 
                         local y = position.y 
                         local z = position.z 
@@ -2856,7 +2921,8 @@ function HudClass(Nav, c, u, s, atlas, antigrav, hover, shield, warpdrive, weapo
             local mass = coreMass > 1000000 and round(coreMass / 1000000,2).." kTons" or round(coreMass / 1000, 2).." Tons"
             if inAtmo then brakeValue = LastMaxBrakeInAtmo else brakeValue = LastMaxBrake end
             local brkDist, brkTime = Kinematic.computeDistanceAndTime(velMag, 0, coreMass, 0, 0, brakeValue)
-    
+            if brkDist < 0 then brkDist = 0 end
+
             local maxThrust = Nav:maxForceForward()
             gravity = c.getGravityIntensity()
             if gravity < 0.1 then gravity = 9.80665 end

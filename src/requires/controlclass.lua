@@ -229,11 +229,11 @@ function ControlClass(Nav, c, u, s, atlas, vBooster, hover, antigrav, shield, db
         elseif action == "option1" then
             toggleView = false
             if AltIsOn and holdingShift then 
-                local onboard = ""
+                local parts = {}
                 for i=1, #passengers do
-                    onboard = onboard.."| Name: "..s.getPlayerName(passengers[i]).." Mass: "..round(C.getBoardedPlayerMass(passengers[i])/1000,1).."t "
+                    parts[#parts+1] = "| Name: "..s.getPlayerName(passengers[i]).." Mass: "..round(C.getBoardedPlayerMass(passengers[i])/1000,1).."t "
                 end
-                s.print("Onboard: "..onboard)
+                s.print("Onboard: "..table.concat(parts))
                 return
             end
             ATLAS.adjustAutopilotTargetIndex()
@@ -251,11 +251,11 @@ function ControlClass(Nav, c, u, s, atlas, vBooster, hover, antigrav, shield, db
         elseif action == "option3" then
             toggleView = false
             if AltIsOn and holdingShift then 
-                local onboard = ""
+                local parts = {}
                 for i=1, #ships do
-                    onboard = onboard.."| ID: "..ships[i].." Mass: "..round(C.getDockedConstructMass(ships[i])/1000,1).."t "
+                    parts[#parts+1] = "| ID: "..ships[i].." Mass: "..round(C.getDockedConstructMass(ships[i])/1000,1).."t "
                 end
-                s.print("Docked Ships: "..onboard)
+                s.print("Docked Ships: "..table.concat(parts))
                 return
             end
             if hideHudOnToggleWidgets then
@@ -620,7 +620,7 @@ function ControlClass(Nav, c, u, s, atlas, vBooster, hover, antigrav, shield, db
             end
 
         local i
-        local command, arguement = nil, nil
+        local command, argument = nil, nil
         local commandhelp = "Command List:\n/commands \n/setname <newname> - Updates current selected saved position name\n/G VariableName newValue - Updates global variable to new value\n"..
                 "/G dump - shows all variables updatable by /G\n/agg <targetheight> - Manually set agg target height\n"..
                 "/addlocation SafeZoneCenter ::pos{0,0,13771471,7435803,-128971} - adds a saved location by waypoint, not as accurate as making one at location\n"..
@@ -636,7 +636,7 @@ function ControlClass(Nav, c, u, s, atlas, vBooster, hover, antigrav, shield, db
         command = text
         if i ~= nil and string.find(text, "::") ~= 1 then
             command = string.sub(text, 0, i-1)
-            arguement = string.sub(text, i+1)
+            argument = string.sub(text, i+1)
         end
         if command == "/help" or command == "/commands" then
             for str in string.gmatch(commandhelp, "([^\n]+)") do
@@ -644,48 +644,48 @@ function ControlClass(Nav, c, u, s, atlas, vBooster, hover, antigrav, shield, db
             end
             return   
         elseif command == "/setname" then 
-            if arguement == nil or arguement == "" then
+            if argument == nil or argument == "" then
                 msg ("Usage: ah-setname Newname")
                 return
             end
             if AutopilotTargetIndex > 0 and CustomTarget ~= nil then
-                ATLAS.UpdatePosition(arguement)
+                ATLAS.UpdatePosition(argument)
             else
                 msg ("Select a saved target to rename first")
             end
         elseif shield and command =="/resist" then
-            SHIELD.setResist(arguement)
+            SHIELD.setResist(argument)
         elseif command == "/addlocation" or string.find(text, "::pos") ~= nil then
             local temp = false
             local savename = "0-Temp"
-            if arguement == nil or arguement == "" or command ~= "/addlocation" then
-                arguement = command
+            if argument == nil or argument == "" or command ~= "/addlocation" then
+                argument = command
                 temp = true
             end
             if not alignTarget and not Autopilot and not VectorToTarget and not spaceLaunch and not IntoOrbit and not Reentry and not finalLand then
-                i = string.find(arguement, "::")
-                if not temp then savename = string.sub(arguement, 1, i-2) end
-                local pos = string.sub(arguement, i)
+                i = string.find(argument, "::")
+                if not temp then savename = string.sub(argument, 1, i-2) end
+                local pos = string.sub(argument, i)
                 pos = pos:gsub("%s+", "")
                 AddNewLocationByWaypoint(savename, pos, temp)
             else
                 msg("Disengage Autopilot before adding waypoints")
             end
         elseif command == "/agg" then
-            if arguement == nil or arguement == "" then
+            if argument == nil or argument == "" then
                 msg ("Usage: /agg targetheight")
                 return
             end
-            arguement = tonum(arguement)
-            if arguement < 1000 then arguement = 1000 end
-            AntigravTargetAltitude = arguement
-            msg ("AGG Target Height set to "..arguement)
+            argument = tonum(argument)
+            if argument < 1000 then argument = 1000 end
+            AntigravTargetAltitude = argument
+            msg ("AGG Target Height set to "..argument)
         elseif command == "/G" then
-            if arguement == nil or arguement == "" then
+            if argument == nil or argument == "" then
                 msg ("Usage: /G VariableName variablevalue\n/G dump - shows all variables")
                 return
             end
-            if arguement == "dump" then
+            if argument == "dump" then
                 for k, v in pairs(saveableVariables()) do
                     if type(v.get()) == "boolean" then
                         if v.get() == true then
@@ -701,9 +701,9 @@ function ControlClass(Nav, c, u, s, atlas, vBooster, hover, antigrav, shield, db
                 end
                 return
             end
-            i = string.find(arguement, " ")
-            local globalVariableName = string.sub(arguement,0, i-1)
-            local newGlobalValue = string.sub(arguement,i+1)
+            i = string.find(argument, " ")
+            local globalVariableName = string.sub(argument,0, i-1)
+            local newGlobalValue = string.sub(argument,i+1)
             for k, v in pairs(saveableVariables()) do
                 if k == globalVariableName then
                     local varType = type(v.get())
@@ -755,41 +755,56 @@ function ControlClass(Nav, c, u, s, atlas, vBooster, hover, antigrav, shield, db
             end
         elseif command == "/trans" then
             if transponder then
-                if arguement == nil or arguement == "" then
+                if argument == nil or argument == "" then
                     msg ("Current tag: "..jencode(transponder.getTags()))
                     return
                 else
-                    transponder.setTags({arguement})
-                    msg ("Transponder tag set to: "..arguement)
+                    transponder.setTags({argument})
+                    msg ("Transponder tag set to: "..argument)
                 end
             else
                 msg ("No transponder found.")
             end
         elseif command == "/createPrivate" then
-            local saveStr = "privatelocations = {\n"
+            local saveParts = {"privatelocations = {\n"}
             local msgStr = ""
             if #privatelocations > 0 then
                 for k,v in pairs(privatelocations) do
-                    saveStr = saveStr.. "{position = {x = "..v.position.x..", y = "..v.position.y..", z = "..v.position.z.."},\n "..
+                    saveParts[#saveParts+1] = "{position = {x = "..v.position.x..", y = "..v.position.y..", z = "..v.position.z.."},\n "..
                                         "name = '"..v.name.."',\n planetname = '"..v.planetname.."',\n gravity = "..v.gravity..",\n"
-                    if v.heading then saveStr = saveStr.."heading = {x = "..v.heading.x..", y = "..v.heading.y..", z = "..v.heading.z.."},\n" end
-                    if v.safe then saveStr = saveStr.."safe = true},\n" else saveStr = saveStr.."safe = false},\n" end
+                    if v.heading then saveParts[#saveParts+1] = "heading = {x = "..v.heading.x..", y = "..v.heading.y..", z = "..v.heading.z.."},\n" end
+                    if v.safe then saveParts[#saveParts+1] = "safe = true},\n" else saveParts[#saveParts+1] = "safe = false},\n" end
                 end
             end
             msgStr = #privatelocations.."-Private "
-            if arguement == "all" then
+            if argument == "all" then
                 for k,v in pairs(SavedLocations) do
-                    saveStr = saveStr.. "{position = {x = "..v.position.x..", y = "..v.position.y..", z = "..v.position.z.."},\n "..
+                    saveParts[#saveParts+1] = "{position = {x = "..v.position.x..", y = "..v.position.y..", z = "..v.position.z.."},\n "..
                                         "name = '*"..v.name.."',\n planetname = '"..v.planetname.."',\n gravity = "..v.gravity..",\n"
-                    if v.heading then saveStr = saveStr.."heading = {x = "..v.heading.x..", y = "..v.heading.y..", z = "..v.heading.z.."},\n" end
-                    if v.safe then saveStr = saveStr.." safe = true},\n" else saveStr = saveStr.."safe = false},\n" end
+                    if v.heading then saveParts[#saveParts+1] = "heading = {x = "..v.heading.x..", y = "..v.heading.y..", z = "..v.heading.z.."},\n" end
+                    if v.safe then saveParts[#saveParts+1] = " safe = true},\n" else saveParts[#saveParts+1] = "safe = false},\n" end
                 end
                 msgStr = msgStr..#SavedLocations.."-Public "
             end
-            saveStr = saveStr.."}\n return privatelocations"
+            local saveStr = table.concat(saveParts).."}\n return privatelocations"
             if screenHud_1 then screenHud_1.setHTML(saveStr) end
             msg (msgStr.."locations dumped to screen if present.\n Cut and paste to privatelocations.lua to use")
             msgTimer = 7
+        elseif command == "/reentry" then
+            reentryModePreference = not reentryModePreference
+            if reentryModePreference then
+                msg("Reentry mode: Glide (controlled descent)")
+            else
+                msg("Reentry mode: Parachute (ballistic descent)")
+            end
+        elseif command == "/resumeroute" then
+            if #collisionSavedRoute > 0 then
+                apRoute = collisionSavedRoute
+                collisionSavedRoute = {}
+                msg("Route restored: "..#apRoute.." waypoints. Engage autopilot to continue.")
+            else
+                msg("No saved route to resume")
+            end
         elseif command == "/pipecenter" then
             if Autopilot then
                 msg("Disengage autopilot before using /pipecenter")

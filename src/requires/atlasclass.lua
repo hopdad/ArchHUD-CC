@@ -569,7 +569,10 @@ function Kinematics(Nav, c, u, s, msqrt, mabs) -- Part of Jaylebreak's flight fi
     return Kinematic
 end
 
-function Keplers(Nav, c, u, s, stringf, uclamp, tonum, msqrt, float_eq) -- Part of Jaylebreak's flight files, modified slightly for hud
+--- Kepler orbital mechanics module. Provides escape/orbital speed computation,
+--- full orbital parameter calculation (eccentricity, anomalies, periods, times).
+--- Based on Jaylebreak's flight files, modified for ArchHUD.
+function Keplers(Nav, c, u, s, stringf, uclamp, tonum, msqrt, float_eq)
     local vec3 = vec3
     local PlanetRef = PlanetRef(Nav, c, u, s, stringf, uclamp, tonum, msqrt, float_eq)
     local function isString(s)
@@ -581,6 +584,10 @@ function Keplers(Nav, c, u, s, stringf, uclamp, tonum, msqrt, float_eq) -- Part 
     Kepler = {}
     Kepler.__index = Kepler
 
+    --- Compute escape velocity and circular orbital speed at a given altitude.
+    --- @param altitude number  altitude above body surface in meters
+    --- @return number escape   escape velocity in m/s (nil if at body center)
+    --- @return number orbital  circular orbit velocity in m/s (nil if at body center)
     function Kepler:escapeAndOrbitalSpeed(altitude)
         assert(self.body)
         -- P = -GMm/r and KE = mv^2/2 (no lorentz factor used)
@@ -595,6 +602,11 @@ function Keplers(Nav, c, u, s, stringf, uclamp, tonum, msqrt, float_eq) -- Part 
         return nil, nil
     end
 
+    --- Compute orbital parameters (eccentricity, semi-major axis, periapsis, apoapsis,
+    --- orbital period, anomalies, and times) for a body at a given position and velocity.
+    --- @param overload  vec3|string|MapPosition  world position or map position string
+    --- @param velocity  vec3  world velocity vector
+    --- @return table  orbital parameters {periapsis, apoapsis, eccentricity, period, ...}
     function Kepler:orbitalParameters(overload, velocity)
         assert(self.body)
         assert(isTable(overload) or isString(overload))
@@ -607,7 +619,14 @@ function Keplers(Nav, c, u, s, stringf, uclamp, tonum, msqrt, float_eq) -- Part 
         local d = r:len()
         local mu = self.body.GM
         local e = ((v2 - mu / d) * r - r:dot(v) * v) / mu
-        local a = mu / (2 * mu / d - v2)
+        -- Guard against division by zero when velocity equals escape velocity (fix #3)
+        local denom = 2 * mu / d - v2
+        local a
+        if math.abs(denom) < 1e-6 then
+            a = math.huge -- Parabolic escape trajectory
+        else
+            a = mu / denom
+        end
         local ecc = e:len()
         local dir = e:normalize()
         local pd = a * (1 - ecc)
@@ -617,12 +636,18 @@ function Keplers(Nav, c, u, s, stringf, uclamp, tonum, msqrt, float_eq) -- Part 
         local trm = msqrt(a * mu * (1 - ecc * ecc))
         local Period = apo and 2 * math.pi * msqrt(a ^ 3 / mu)
         -- These are great and all, but, I need more.
-        local trueAnomaly = math.acos((e:dot(r)) / (ecc * d))
+        -- Guard acos inputs to [-1,1] to prevent NaN from floating-point drift (fix #15)
+        local taCos = (ecc * d > 0) and ((e:dot(r)) / (ecc * d)) or 1
+        taCos = taCos > 1 and 1 or (taCos < -1 and -1 or taCos)
+        local trueAnomaly = math.acos(taCos)
         if r:dot(v) < 0 then
             trueAnomaly = -(trueAnomaly - 2 * math.pi)
         end
         -- Apparently... cos(EccentricAnomaly) = (cos(trueAnomaly) + eccentricity)/(1 + eccentricity * cos(trueAnomaly))
-        local EccentricAnomaly = math.acos((math.cos(trueAnomaly) + ecc) / (1 + ecc * math.cos(trueAnomaly)))
+        local eaDenom = 1 + ecc * math.cos(trueAnomaly)
+        local eaCos = math.abs(eaDenom) > 1e-10 and (math.cos(trueAnomaly) + ecc) / eaDenom or 1
+        eaCos = eaCos > 1 and 1 or (eaCos < -1 and -1 or eaCos)
+        local EccentricAnomaly = math.acos(eaCos)
         -- Then.... apparently if this is below 0, we should add 2pi to it
         -- I think also if it's below 0, we're past the apoapsis?
         local timeTau = EccentricAnomaly
@@ -689,9 +714,16 @@ function Keplers(Nav, c, u, s, stringf, uclamp, tonum, msqrt, float_eq) -- Part 
 end
 
 -- ArchHUD AtlasOrdering
-function AtlasClass(Nav, c, u, s, dbHud_1, atlas, sysUpData, sysAddData, mfloor, tonum, msqrt, play, round, msg) -- Atlas and Interplanetary functions including Update Autopilot Target
+--- Atlas and interplanetary navigation class.
+--- Manages the ordered location list, autopilot target selection, waypoint display,
+--- and all AP state transitions (BrakeLanding, Autopilot, AltitudeHold, IntoOrbit, etc.).
+function AtlasClass(Nav, c, u, s, dbHud_1, atlas, sysUpData, sysAddData, mfloor, tonum, msqrt, play, round, msg)
 
     -- Atlas functions
+        --- Find the nearest planet to a world position. Falls back to Space (atlas[0][0])
+        --- if position is above the atmosphere of the closest body.
+        --- @param position vec3  world position
+        --- @return table  planet body reference
         local function getPlanet(position)
             local p = sys:closestBody(position)
             if (position-p.center):len() > p.radius + p.noAtmosphericDensityAltitude then
@@ -700,6 +732,7 @@ function AtlasClass(Nav, c, u, s, dbHud_1, atlas, sysUpData, sysAddData, mfloor,
             return p
         end
 
+        --- Rebuild the alphabetically sorted AtlasOrdered list from atlas[0].
         local function UpdateAtlasLocationsList()
             local function atlasCmp (left, right)
                 return left.name < right.name
@@ -712,6 +745,10 @@ function AtlasClass(Nav, c, u, s, dbHud_1, atlas, sysUpData, sysAddData, mfloor,
             table.sort(AtlasOrdered, atlasCmp)
         end
         
+        --- Search an atlas list for an entry by name.
+        --- @param atlasList table   ordered atlas list to search
+        --- @param findme    string  name to find (defaults to CustomTarget.name)
+        --- @return number  index in list, or -1 if not found
         local function findAtlasIndex(atlasList, findme)
             if not findme then findme = CustomTarget.name end
             for k, v in pairs(atlasList) do
@@ -722,7 +759,14 @@ function AtlasClass(Nav, c, u, s, dbHud_1, atlas, sysUpData, sysAddData, mfloor,
             return -1
         end
 
+        --- Apply the current AutopilotTargetIndex to set the active AP destination.
+        --- Looks up the atlas entry, configures widgets, and sets CustomTarget.
+        --- Resets to index 0 ("None") if out of range.
         local function UpdateAutopilotTarget()
+            -- Bounds check: reset to 0 if index is out of range (fix #4)
+            if AutopilotTargetIndex < 0 or AutopilotTargetIndex > #AtlasOrdered then
+                AutopilotTargetIndex = 0
+            end
             apScrollIndex = AutopilotTargetIndex
             -- So the indices are weird.  I think we need to do a pairs
             if AutopilotTargetIndex == 0 then

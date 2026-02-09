@@ -1,0 +1,17 @@
+name: Tests
+on:
+  push:
+    branches: ['*']
+  pull_request:
+    branches: [master]
+jobs:
+  lua-tests:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Lua 5.3
+        run: sudo apt-get update && sudo apt-get install -y lua5.3
+
+      - name: Run math and utility tests
+        run: lua5.3 tests/test_math.lua

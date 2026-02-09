@@ -21,8 +21,8 @@ Everything from here after assumes you are running in the Linux environment
     EOF
     ```
 1. Add the SSH Key to GitHub (see https://devconnected.com/how-to-setup-ssh-keys-on-github/#Add_SSH_key_to_your_GitHub_Account if you don't know how to do this)
-1. Clone the repo: `git clone git@github.com:Dimencia/DU-Orbital-Hud.git`
-1. `cd DU-Orbital-Hud`
+1. Clone the repo: `git clone git@github.com:hopdad/ArchHUD-CC.git`
+1. `cd ArchHUD-CC`
 1. Set your git name and email for commits:
     ```
     git config --add user.name "<your name>"

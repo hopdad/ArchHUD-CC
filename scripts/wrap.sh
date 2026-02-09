@@ -74,11 +74,7 @@ lua ${ROOTDIR}/scripts/wrap.lua --handle-errors-min --output yaml \
              --slots ${SLOTS[*]}
 
 # Re-insert the exports
-if [[ "$MINIFY" == "true" ]]; then
-    sed "/__wrap_lua__printError=true/e cat $WORK_DIR/ArchHUD.exports" $WORK_DIR/ArchHUD.wrapped.conf > $CONF_DST
-else
-    sed "/__wrap_lua__printError=true/e cat $WORK_DIR/ArchHUD.exports" $WORK_DIR/ArchHUD.wrapped.conf > $CONF_DST
-fi
+sed "/__wrap_lua__printError=true/e cat $WORK_DIR/ArchHUD.exports" $WORK_DIR/ArchHUD.wrapped.conf > $CONF_DST
 
 # Fix up minified L_TEXTs which requires a space after the comma
 sed -i -E 's/L_TEXT\(("[^"]*"),("[^"]*")\)/L_TEXT(\1, \2)/g' $CONF_DST

@@ -62,24 +62,24 @@ function programClass(Nav, c, u, atlas, vBooster, hover, telemeter_1, antigrav, 
             return table1
         end
 
-        local function saveableVariables(subset) -- returns saveable variables by catagory
+        local function saveableVariables(subset) -- returns saveable variables by category
             local returnSet = {}
                 -- Complete list of user variables above, must be in saveableVariables to be stored on databank
 
             if not subset then
                 addTable(returnSet, saveableVariablesBoolean)
-                addTable(returnSet, savableVariablesHandling)
-                addTable(returnSet, savableVariablesHud)
-                addTable(returnSet, savableVariablesPhysics)
+                addTable(returnSet, saveableVariablesHandling)
+                addTable(returnSet, saveableVariablesHud)
+                addTable(returnSet, saveableVariablesPhysics)
                 return returnSet
             elseif subset == "boolean" then
                 return saveableVariablesBoolean
             elseif subset == "handling" then
-                return savableVariablesHandling
+                return saveableVariablesHandling
             elseif subset == "hud" then
-                return savableVariablesHud
+                return saveableVariablesHud
             elseif subset == "physics" then
-                return savableVariablesPhysics
+                return saveableVariablesPhysics
             end            
         end
 
@@ -226,8 +226,7 @@ function programClass(Nav, c, u, atlas, vBooster, hover, telemeter_1, antigrav, 
                     LastMaxBrakeInAtmo = 0
                 end
                 LastStartTime = time
-                userControlScheme = string.lower(userControlScheme)
-                if string.find("keyboard virtual joystick mouse",  userControlScheme) == nil then 
+                if string.find("keyboard virtual joystick mouse",  userControlScheme) == nil then
                     msg ("Invalid User Control Scheme selected.\nChange userControlScheme in Lua Parameters to keyboard, mouse, or virtual joystick\nOr use shift and button in screen")
                     msgTimer = 7
                 end
@@ -289,14 +288,14 @@ function programClass(Nav, c, u, atlas, vBooster, hover, telemeter_1, antigrav, 
                 local spaceUnitMassByLitter = 6
                 local rocketUnitMassByLitter = 0.8
                 for k in pairs(elementsID) do --Look for space engines, landing gear, fuel tanks if not slotted and c size
-                    local type = c.getElementDisplayNameById(elementsID[k])
-                    if stringmatch(type, '^.*Atmospheric Engine$') then
+                    local elemType = c.getElementDisplayNameById(elementsID[k])
+                    if stringmatch(elemType, '^.*Atmospheric Engine$') then
                         if stringmatch(tostring(c.getEngineTagsById(elementsID[k])), '^.*vertical.*$') and c.getElementForwardById(elementsID[k])[3]>0 then
                             UpVertAtmoEngine = true
                         end
                     end
 
-                    if stringmatch(type, '^.*Space Engine$') then
+                    if stringmatch(elemType, '^.*Space Engine$') then
                         SpaceEngines = true
                         if stringmatch(tostring(c.getEngineTagsById(elementsID[k])), '^.*vertical.*$') then
                             local enrot = c.getElementForwardById(elementsID[k])
@@ -307,10 +306,10 @@ function programClass(Nav, c, u, atlas, vBooster, hover, telemeter_1, antigrav, 
                             end
                         end
                     end
-                    if (type == "Landing Gear") then
+                    if (elemType == "Landing Gear") then
                         hasGear = true
                     end
-                    if (type == "Dynamic Core Unit") then
+                    if (elemType == "Dynamic Core Unit") then
                         local hp = eleMaxHp(elementsID[k])
                         if hp > 10000 then
                             coreHalfDiag = 110
@@ -373,7 +372,7 @@ function programClass(Nav, c, u, atlas, vBooster, hover, telemeter_1, antigrav, 
                         v.toggle()
                     end
                 end    
-                if forcefield and (inAtmo or (not inAtmo == 0 and coreAltitude < 10000)) then
+                if forcefield and (inAtmo or (not inAtmo and coreAltitude < 10000)) then
                     for _, v in pairs(forcefield) do
                         v.toggle()
                     end
@@ -398,7 +397,7 @@ function programClass(Nav, c, u, atlas, vBooster, hover, telemeter_1, antigrav, 
                 GearExtended = Nav.control.isAnyLandingGearDeployed() or not stablized or (abvGndDet ~=-1 and (abvGndDet - 3) < LandingGearGroundHeight)
                 -- Engage brake and extend Gear if either a hover detects something, or they're in space and moving very slowly
                 local slow = coreVelocity:len() < 30
-                if (abvGndDet ~= -1 and stabilzied) or ((not inAtmo or not stabilzied) and slow) then
+                if (abvGndDet ~= -1 and stablized) or ((not inAtmo or not stablized) and slow) then
                     BrakeIsOn = "Startup"
                 else
                     BrakeIsOn = false
@@ -571,6 +570,7 @@ function programClass(Nav, c, u, atlas, vBooster, hover, telemeter_1, antigrav, 
             CONTROL = ControlClass(Nav, c, u, s, atlas, vBooster, hover, antigrav, shield, dbHud_2, gyro, screenHud_1,
                 isRemote, navCom, sysIsVwLock, sysLockVw, sysDestWid, round, stringmatch, tonum, uclamp, play, saveableVariables, SaveDataBank, msg, transponder, jencode)
             if shield then SHIELD = ShieldClass(shield, stringmatch, mfloor, msg) end
+            if TelemetryClass and dbHud_1 then TELEMETRY = TelemetryClass(dbHud_1, jencode, systime, mfloor, c) end
             coroutine.yield()
             u.hideWidget()
             s.showScreen(true)
@@ -599,18 +599,21 @@ function programClass(Nav, c, u, atlas, vBooster, hover, telemeter_1, antigrav, 
                     end
                 end
             end
-            ECU = string.find(s.getItem(u.getItemId())['displayName'],"Emergency") or false
-            if ECU then 
-                if abvGndDet > -1 and velMag < 1 and (abvGndDet - 3) < LandingGearGroundHeight then 
+            local itemInfo = s.getItem(u.getItemId())
+            ECU = (itemInfo and string.find(itemInfo['displayName'] or "","Emergency")) or false
+            ecuGearDeployed = false
+            if ECU then
+                if abvGndDet > -1 and velMag < 1 and (abvGndDet - 3) < LandingGearGroundHeight then
                     u.exit()
                 else
-                    if ECUHud then 
+                    if ECUHud then
                         ecuResume()
                     else
                         if atmosDensity == 0 then
                             BrakeIsOn = "ECU Braking"
-                        elseif abvGndDet == -1 then 
-                            CONTROL.landingGear() 
+                        elseif abvGndDet == -1 then
+                            CONTROL.landingGear()
+                            ecuGearDeployed = true
                         end
                         if antigrav ~= nil then
                             antigrav.activate()
@@ -618,7 +621,7 @@ function programClass(Nav, c, u, atlas, vBooster, hover, telemeter_1, antigrav, 
                         end
                     end
                 end
-            elseif ECUHud and (ecuThrottle[3]+3) > systime() then
+            elseif ECUHud and ecuThrottle[3] and (ecuThrottle[3]+3) > systime() then
                 ecuResume()
             end
             ships = C.getDockedConstructs() 
@@ -655,8 +658,9 @@ function programClass(Nav, c, u, atlas, vBooster, hover, telemeter_1, antigrav, 
                 s.setScreen(content) 
             end
             LastContent = content
-            if ECU and not ECUHud and atmosDensity > 0 and abvGndDet == -1 then
+            if ECU and not ECUHud and not ecuGearDeployed and atmosDensity > 0 and abvGndDet == -1 then
                 CONTROL.landingGear()
+                ecuGearDeployed = true
             end
             if ECU and abvGndDet > -1 and velMag < 1 and (abvGndDet - 3) < LandingGearGroundHeight then 
                 u.exit()
@@ -762,6 +766,7 @@ function programClass(Nav, c, u, atlas, vBooster, hover, telemeter_1, antigrav, 
             if HUD then HUD.TenthTick() end
         elseif timerId == "oneSecond" then -- Timer for evaluation every 1 second
             if HUD then HUD.OneSecondTick() end
+            if TELEMETRY then TELEMETRY.publish() end
         elseif timerId == "msgTick" then -- Timer executed whenever msgText is applied somwehere
             if HUD then HUD.MsgTick() end
         elseif timerId == "animateTick" then -- Timer for animation
