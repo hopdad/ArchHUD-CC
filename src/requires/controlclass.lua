@@ -50,6 +50,21 @@ function ControlClass(Nav, c, u, s, atlas, vBooster, hover, antigrav, shield, db
         else
             lastTakeoffPos = worldPos -- Save for /return command
             if BrakeLanding then BrakeLanding = false end
+            -- Weight check on takeoff
+            local grav = c.getGravityIntensity()
+            if grav > 0.1 then
+                local fwdDir = vec3(C.getOrientationForward())
+                local atmoThrust = C.getMaxThrustAlongAxis('thrust analog longitudinal ', {fwdDir:unpack()})[1]
+                local upDir = vec3(C.getOrientationUp())
+                local hoverThrust = C.getMaxThrustAlongAxis('hover_engine, booster_engine', {upDir:unpack()})[1]
+                if coreMass > 0.5 * atmoThrust / grav then
+                    msg("WARNING: Ship may be too heavy for atmo engines at current gravity")
+                    msgTimer = 7
+                elseif coreMass > 0.5 * hoverThrust / grav then
+                    msg("CAUTION: Ship exceeds safe hover mass - watch your altitude")
+                    msgTimer = 5
+                end
+            end
             if hasGear then
                 play("grIn","LG",1)
                 Nav.control.retractLandingGears()

@@ -614,9 +614,19 @@ function APClass(Nav, c, u, atlas, vBooster, hover, telemeter_1, antigrav, dbHud
         if (AutopilotTargetIndex > 0 or #apRoute>0) and not Autopilot and not VectorToTarget and not spaceLaunch and not IntoOrbit then
             -- Pre-flight validation checks
             local gravIntensity = c.getGravityIntensity()
-            if gravIntensity > 0 and 0.5 * Nav:maxForceForward() / gravIntensity < coreMass then
-                msg("WARNING: Thrust-to-weight ratio is low. Heavy loads may affect performance.")
-                msgTimer = 5
+            if gravIntensity > 0.1 then
+                local fwdDir = vec3(C.getOrientationForward())
+                local maxAtmo = C.getMaxThrustAlongAxis('thrust analog longitudinal ', {fwdDir:unpack()})[1]
+                local maxSpace = C.getMaxThrustAlongAxis('thrust analog longitudinal ', {fwdDir:unpack()})[3]
+                local safeAtmo = 0.5 * maxAtmo / gravIntensity
+                local safeSpace = 0.5 * maxSpace / gravIntensity
+                if inAtmo and coreMass > safeAtmo then
+                    msg("WARNING: Ship too heavy for atmo engines. Reduce cargo before flight.")
+                    msgTimer = 7
+                elseif coreMass > 0.5 * Nav:maxForceForward() / gravIntensity then
+                    msg("WARNING: Thrust-to-weight ratio is low. Heavy loads may affect performance.")
+                    msgTimer = 5
+                end
             end
             if CollisionSystem and not RADAR then
                 msg("WARNING: Collision system enabled but no radar detected")
@@ -628,6 +638,18 @@ function APClass(Nav, c, u, atlas, vBooster, hover, telemeter_1, antigrav, dbHud
                 if #spaceTanks == 0 then
                     msg("WARNING: No space fuel tanks detected for interplanetary trip")
                     msgTimer = 5
+                end
+                -- Check if space engines can handle the mass
+                if gravIntensity > 0.1 then
+                    local fwdDir = vec3(C.getOrientationForward())
+                    local maxSpace = C.getMaxThrustAlongAxis('thrust analog longitudinal ', {fwdDir:unpack()})[3]
+                    if maxSpace > 0 and coreMass > 0.5 * maxSpace / gravIntensity then
+                        msg("WARNING: Ship may be too heavy for space engines. Check cargo load.")
+                        msgTimer = 7
+                    elseif maxSpace == 0 then
+                        msg("WARNING: No space engines detected for interplanetary trip")
+                        msgTimer = 7
+                    end
                 end
             end
             if #apRoute>0 and not finalLand then

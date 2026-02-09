@@ -210,9 +210,30 @@ This updates in real time as your speed and distance change.
 
 When engaging autopilot, the system performs automatic checks and warns you about potential issues:
 
-- **Low thrust-to-weight ratio** -- Ship may be too heavy for available thrust.
+- **Overweight for atmo engines** -- Ship mass exceeds what atmosphere engines can safely lift.
+- **Overweight for space engines** -- Ship mass exceeds what space engines can handle (interplanetary trips).
+- **No space engines** -- Interplanetary trip selected but no space engines detected.
+- **Low thrust-to-weight ratio** -- General warning when thrust margin is thin.
 - **Collision system without radar** -- Collision avoidance is enabled but no radar is linked.
 - **No space fuel tanks** -- Interplanetary trip detected but no space fuel tanks found on the construct.
+
+## Weight Warnings
+
+The HUD monitors ship mass against engine capacity in real time. As cargo is loaded or unloaded, the warnings update automatically.
+
+### Persistent HUD Warning
+
+When the ship is flying and mass exceeds safe limits for the current environment, the HUD displays a blinking warning:
+
+- **In atmosphere**: `** OVERWEIGHT **` -- atmo engines cannot safely support the ship.
+- **In space**: `** OVERWEIGHT FOR SPACE **` -- space engines cannot safely support the ship at current gravity.
+
+### Takeoff Warning
+
+When you retract landing gear (takeoff), the system checks if the ship is too heavy:
+
+- **Too heavy for atmo engines** -- warns before takeoff so you can reduce cargo.
+- **Exceeds safe hover mass** -- hovers may struggle to maintain altitude.
 
 ---
 
