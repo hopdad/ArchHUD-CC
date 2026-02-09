@@ -599,18 +599,21 @@ function programClass(Nav, c, u, atlas, vBooster, hover, telemeter_1, antigrav, 
                     end
                 end
             end
-            ECU = string.find(s.getItem(u.getItemId())['displayName'],"Emergency") or false
-            if ECU then 
-                if abvGndDet > -1 and velMag < 1 and (abvGndDet - 3) < LandingGearGroundHeight then 
+            local itemInfo = s.getItem(u.getItemId())
+            ECU = (itemInfo and string.find(itemInfo['displayName'] or "","Emergency")) or false
+            ecuGearDeployed = false
+            if ECU then
+                if abvGndDet > -1 and velMag < 1 and (abvGndDet - 3) < LandingGearGroundHeight then
                     u.exit()
                 else
-                    if ECUHud then 
+                    if ECUHud then
                         ecuResume()
                     else
                         if atmosDensity == 0 then
                             BrakeIsOn = "ECU Braking"
-                        elseif abvGndDet == -1 then 
-                            CONTROL.landingGear() 
+                        elseif abvGndDet == -1 then
+                            CONTROL.landingGear()
+                            ecuGearDeployed = true
                         end
                         if antigrav ~= nil then
                             antigrav.activate()
@@ -618,7 +621,7 @@ function programClass(Nav, c, u, atlas, vBooster, hover, telemeter_1, antigrav, 
                         end
                     end
                 end
-            elseif ECUHud and (ecuThrottle[3]+3) > systime() then
+            elseif ECUHud and ecuThrottle[3] and (ecuThrottle[3]+3) > systime() then
                 ecuResume()
             end
             ships = C.getDockedConstructs() 
@@ -655,8 +658,9 @@ function programClass(Nav, c, u, atlas, vBooster, hover, telemeter_1, antigrav, 
                 s.setScreen(content) 
             end
             LastContent = content
-            if ECU and not ECUHud and atmosDensity > 0 and abvGndDet == -1 then
+            if ECU and not ECUHud and not ecuGearDeployed and atmosDensity > 0 and abvGndDet == -1 then
                 CONTROL.landingGear()
+                ecuGearDeployed = true
             end
             if ECU and abvGndDet > -1 and velMag < 1 and (abvGndDet - 3) < LandingGearGroundHeight then 
                 u.exit()

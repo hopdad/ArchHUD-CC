@@ -393,6 +393,7 @@ function HudClass(Nav, c, u, s, atlas, antigrav, hover, shield, warpdrive, weapo
             ["Follow"] = "Follow Mode: Braking",
             ["Follow Off"] = "Follow Mode: Disabled",
             ["Manual"] = "Manual Brake",
+            ["ECU Braking"] = "ECU: Emergency Braking",
         }
         local function DrawWarnings(newContent)
 
