@@ -521,10 +521,44 @@ function script.onStop()
     end
 end
 
+--- Check recorded history for anomalies and write alert if detected
+local function checkAlerts()
+    local n = #history
+    if n < 4 then return end -- Need at least 4 snapshots (40s of data)
+
+    local cur = history[n]
+    local prev = history[n - 3] -- 30 seconds ago
+    local alertMsg = nil
+
+    -- Alert: rapid altitude loss (>1000m in 30s while not near ground)
+    if prev.a and cur.a and prev.a > 500 then
+        local altDrop = prev.a - cur.a
+        if altDrop > 1000 then
+            alertMsg = stringf("ALERT: Rapid altitude loss! -%dm in 30s", mfloor(altDrop))
+        end
+    end
+
+    -- Alert: sudden speed loss (>50% drop in 30s, from >100 m/s)
+    if prev.s and cur.s and prev.s > 100 then
+        local spdDrop = prev.s - cur.s
+        if spdDrop > prev.s * 0.5 then
+            alertMsg = stringf("ALERT: Sudden deceleration! %.0f -> %.0f m/s", prev.s, cur.s)
+        end
+    end
+
+    if alertMsg then
+        db.setStringValue("A_recorder", jencode({
+            msg = alertMsg,
+            t = system.getArkTime()
+        }))
+    end
+end
+
 function script.onTick(timerId)
     if timerId == "refresh" then
         if screen and db then
             recordAndRender()
+            checkAlerts()
         end
     end
 end

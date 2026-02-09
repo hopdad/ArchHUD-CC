@@ -31,6 +31,10 @@ function programClass(Nav, c, u, atlas, vBooster, hover, telemeter_1, antigrav, 
         local getItem = s.getItem
         local getMaxVolume = GetFuelTankMaxVolume
 
+        -- Board alert channel: last-seen timestamps for each alert source
+        local alertKeys = { "A_damage", "A_radar", "A_recorder" }
+        local alertLastSeen = { A_damage = 0, A_radar = 0, A_recorder = 0 }
+
         local coreHalfDiag = 13
         local elementsID = c.getElementIdList()
 
@@ -767,6 +771,18 @@ function programClass(Nav, c, u, atlas, vBooster, hover, telemeter_1, antigrav, 
         elseif timerId == "oneSecond" then -- Timer for evaluation every 1 second
             if HUD then HUD.OneSecondTick() end
             if TELEMETRY then TELEMETRY.publish() end
+            -- Read board alerts from databank
+            if dbHud_1 then
+                for _, key in ipairs(alertKeys) do
+                    if dbHud_1.hasKey(key) then
+                        local ok, alert = pcall(jdecode, dbHud_1.getStringValue(key))
+                        if ok and alert and alert.t and alert.t > alertLastSeen[key] then
+                            alertLastSeen[key] = alert.t
+                            if alert.msg then msg(alert.msg) end
+                        end
+                    end
+                end
+            end
         elseif timerId == "msgTick" then -- Timer executed whenever msgText is applied somwehere
             if HUD then HUD.MsgTick() end
         elseif timerId == "animateTick" then -- Timer for animation

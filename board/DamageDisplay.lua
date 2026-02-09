@@ -20,6 +20,7 @@ local system = system
 
 -- Cached standard library references
 local jdecode = json.decode
+local jencode = json.encode
 local mfloor  = math.floor
 local mmin    = math.min
 local mmax    = math.max
@@ -28,6 +29,10 @@ local stringf = string.format
 
 -- Pagination state: auto-advances each render cycle
 local currentPage = 0
+
+-- Alert state: track previous integrity to detect drops
+local prevIntegrity = 100
+local prevDisabled = 0
 
 -- ═══════════════════════════════════════════════
 -- Utility Functions
@@ -365,9 +370,45 @@ function script.onStop()
     end
 end
 
+--- Check damage data and write alert to databank if thresholds crossed
+local function checkAlerts()
+    local damage = safeDecode("T_damage")
+    if not damage then return end
+
+    local pct = damage.pct or 100
+    local off = damage.off or 0
+    local alertMsg = nil
+
+    -- Alert on integrity threshold crossings (75%, 50%, 25%)
+    if pct < 25 and prevIntegrity >= 25 then
+        alertMsg = stringf("CRITICAL: Hull integrity %.0f%% - %d disabled", pct, off)
+    elseif pct < 50 and prevIntegrity >= 50 then
+        alertMsg = stringf("WARNING: Hull integrity %.0f%% - %d elements damaged", pct, damage.dmg or 0)
+    elseif pct < 75 and prevIntegrity >= 75 then
+        alertMsg = stringf("Hull integrity %.0f%% - taking damage", pct)
+    end
+
+    -- Alert on new element destruction
+    if off > prevDisabled then
+        local newOff = off - prevDisabled
+        alertMsg = stringf("ALERT: %d element(s) destroyed! %d total disabled", newOff, off)
+    end
+
+    prevIntegrity = pct
+    prevDisabled = off
+
+    if alertMsg then
+        db.setStringValue("A_damage", jencode({
+            msg = alertMsg,
+            t = system.getArkTime()
+        }))
+    end
+end
+
 function script.onTick(timerId)
     if timerId == "refresh" then
         if screen and db then
+            checkAlerts()
             screen.setHTML(renderDashboard())
         end
     end

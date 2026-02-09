@@ -23,10 +23,15 @@ local unit = unit   ---@type ProgrammingBoard
 local system = system
 
 local jdecode = json.decode
+local jencode = json.encode
 local mfloor = math.floor
 local stringf = string.format
 local tblSort = table.sort
 local tblConcat = table.concat
+
+-- Alert state: track previous contacts to detect new arrivals
+local prevContactIds = {}   -- set of previously seen contact names+distance keys
+local prevThreatClose = 0   -- count of hostiles within 2km last tick
 
 -- ════════════════════════════════════════════
 -- Helpers
@@ -368,9 +373,63 @@ function script.onStop()
     end
 end
 
+--- Check radar data and write alert to databank if new threats detected
+local function checkAlerts()
+    local radar = safeDecode("T_radar")
+    if not radar or not radar.list then return end
+
+    local isPvp = radar.pvp
+    local contacts = radar.list
+    local alertMsg = nil
+    local threatClose = 0
+
+    -- Build current contact set and count close threats
+    local currentIds = {}
+    for _, c in ipairs(contacts) do
+        local key = (c.n or "?") .. "_" .. (c.s or "?")
+        currentIds[key] = true
+
+        -- Count non-friendly dynamic contacts within 2km in PVP
+        if isPvp and not c.f and c.k == "Dynamic" and c.d < 2000 then
+            threatClose = threatClose + 1
+        end
+    end
+
+    -- Alert: new hostile within 2km
+    if threatClose > prevThreatClose and isPvp then
+        local newThreats = threatClose - prevThreatClose
+        alertMsg = stringf("THREAT: %d hostile(s) within 2 km!", newThreats)
+    end
+
+    -- Alert: new dynamic contact appeared (not seen last tick)
+    if not alertMsg then
+        for _, c in ipairs(contacts) do
+            if c.k == "Dynamic" and not c.f then
+                local key = (c.n or "?") .. "_" .. (c.s or "?")
+                if not prevContactIds[key] then
+                    local zoneTxt = isPvp and " in PVP zone" or ""
+                    alertMsg = stringf("Radar: New contact '%s' at %s%s", c.n or "Unknown", fmtDist(c.d or 0), zoneTxt)
+                    break
+                end
+            end
+        end
+    end
+
+    prevContactIds = currentIds
+    prevThreatClose = threatClose
+
+    if alertMsg then
+        db.setStringValue("A_radar", jencode({
+            msg = alertMsg,
+            t = system.getArkTime()
+        }))
+    end
+end
+
 function script.onTick(timerId)
     if timerId == "refresh" then
         if screen and db then
+            checkAlerts()
             screen.setHTML(renderDashboard())
         end
     end
