@@ -993,8 +993,15 @@ function APClass(Nav, c, u, atlas, vBooster, hover, telemeter_1, antigrav, dbHud
             autoRoll = autoRollPreference
             AltitudeHold = false
         elseif not planet.hasAtmosphere then
-            msg("Re-Entry requirements not met: you must start out of atmosphere\n and within a planets gravity well over a planet with atmosphere")
-            msgTimer = 5
+            -- No atmosphere (moon/asteroid): direct brake landing approach
+            Reentry = false
+            AltitudeHold = false
+            BrakeLanding = true
+            StrongBrakes = true
+            autoRoll = true
+            BrakeIsOn = "BL Strong"
+            msg("No atmosphere - direct brake landing")
+            play("reOff", "RE")
         elseif not reentryMode then-- Parachute ReEntry
             Reentry = true
             if navCom:getAxisCommandType(0) ~= controlMasterModeId.cruise then
@@ -1690,7 +1697,7 @@ function APClass(Nav, c, u, atlas, vBooster, hover, telemeter_1, antigrav, dbHud
             end
         end
 
-        if finalLand and CustomTarget and (mabs(coreAltitude-HoldAltitude) < 500 or atmosDensity >= 0.11)
+        if finalLand and CustomTarget and (mabs(coreAltitude-HoldAltitude) < 500 or atmosDensity >= 0.11 or not planet.hasAtmosphere)
             and ((CustomTarget.position-worldPos):len() - mabs(coreAltitude - autopilotTargetPlanet:getAltitude(CustomTarget.position))) > 3000 then -- Only engage if far enough away to be able to turn back for it
 
                 if not aptoggle then aptoggle = true end
@@ -2712,16 +2719,14 @@ function APClass(Nav, c, u, atlas, vBooster, hover, telemeter_1, antigrav, dbHud
 
                         brakeDistance, brakeTime = Kinematic.computeDistanceAndTime(velMag, 0, coreMass, 0, 0, curBrake/2)
                         StrongBrakes = true
-                        if distanceToTarget <= brakeDistance + (velMag*deltaTick)/2 and constructVelocity:project_on_plane(worldVertical):normalize():dot(targetVec:project_on_plane(worldVertical):normalize()) > 0.99 then 
-                            if planet.hasAtmosphere then
-                                BrakeIsOn = false
-                                ProgradeIsOn = false
-                                reentryMode = reentryModePreference
-                                spaceLand = false
-                                finalLand = true
-                                Autopilot = false
-                                AP.BeginReentry()
-                            end
+                        if distanceToTarget <= brakeDistance + (velMag*deltaTick)/2 and constructVelocity:project_on_plane(worldVertical):normalize():dot(targetVec:project_on_plane(worldVertical):normalize()) > 0.99 then
+                            BrakeIsOn = false
+                            ProgradeIsOn = false
+                            reentryMode = reentryModePreference
+                            spaceLand = false
+                            finalLand = true
+                            Autopilot = false
+                            AP.BeginReentry()
                         end
                         LastDistanceToTarget = distanceToTarget
                     end
