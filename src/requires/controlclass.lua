@@ -790,6 +790,21 @@ function ControlClass(Nav, c, u, s, atlas, vBooster, hover, antigrav, shield, db
             if screenHud_1 then screenHud_1.setHTML(saveStr) end
             msg (msgStr.."locations dumped to screen if present.\n Cut and paste to privatelocations.lua to use")
             msgTimer = 7
+        elseif command == "/reentry" then
+            reentryModePreference = not reentryModePreference
+            if reentryModePreference then
+                msg("Reentry mode: Glide (controlled descent)")
+            else
+                msg("Reentry mode: Parachute (ballistic descent)")
+            end
+        elseif command == "/resumeroute" then
+            if #collisionSavedRoute > 0 then
+                apRoute = collisionSavedRoute
+                collisionSavedRoute = {}
+                msg("Route restored: "..#apRoute.." waypoints. Engage autopilot to continue.")
+            else
+                msg("No saved route to resume")
+            end
         elseif command == "/pipecenter" then
             if Autopilot then
                 msg("Disengage autopilot before using /pipecenter")

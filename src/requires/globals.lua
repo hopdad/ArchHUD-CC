@@ -176,5 +176,13 @@ local function _A(n)return{set=function(i)_G[n]=i end,get=function()return _G[n]
         pipeDestT = nil -- 2
         pipeDistT = nil -- 2
         alignTarget = false -- 2
+        autoRollOverrideTime = 0 -- AutoRoll manual override timestamp
+        alignmentProgress = 0 -- Alignment progress 0-1 for HUD display
+        landingStopDist = 0 -- BrakeLanding: computed stop distance for HUD
+        landingGroundDist = -1 -- BrakeLanding: distance to ground for HUD
+        landingSafe = true -- BrakeLanding: can we stop in time?
+        collisionTier = 0 -- Collision: 0=none, 1=caution(30s), 2=warning(10s), 3=emergency
+        collisionSavedRoute = {} -- Collision: saved route for resume after avoidance
+        reentryModePreference = false -- Reentry: false=parachute, true=glide (toggled by pilot)
         if shield then shieldPercent = mfloor(0.5 + shield.getShieldHitpoints() * 100 / shield.getMaxShieldHitpoints()) end
     end

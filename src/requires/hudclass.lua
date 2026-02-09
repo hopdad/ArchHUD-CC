@@ -360,6 +360,40 @@ function HudClass(Nav, c, u, s, atlas, antigrav, hover, shield, warpdrive, weapo
         end
         local ecuBlink = 40
         local cachedVersionText = svgText(crx(150), cry(1070), stringf("ARCH Hud Version: %.3f", VERSION_NUMBER), "hudver")
+        -- Human-readable status code lookup for BrakeIsOn values
+        local statusLabels = {
+            ["BL Stop Dist"] = "Landing: Descent Controlled",
+            ["BL Stop BLR"] = "Landing: Rate Limited Descent",
+            ["BL Align Hzn"] = "Landing: Reducing Speed",
+            ["BL Align BLR"] = "Landing: Aligning to Heading",
+            ["BL AP Hzn"] = "Landing: Horizontal Approach",
+            ["BL hSpd"] = "Landing: Reducing Horizontal Speed",
+            ["BL BLR"] = "Landing: Rate Limited",
+            ["BL Slowing"] = "Landing: Final Slowdown",
+            ["BL Strong"] = "Landing: Emergency Brake",
+            ["BL Complete"] = "Landing Complete",
+            ["VTO Limit"] = "VTO: Limiting Ascent",
+            ["VTO Fall"] = "VTO: Recovering Lift",
+            ["VTO Complete"] = "VTO: Complete",
+            ["ATO Hold"] = "Takeoff: Holding",
+            ["ATO Agg Arrive"] = "Takeoff: AGG Altitude Reached",
+            ["ATO Space"] = "Takeoff: Exiting Atmosphere",
+            ["SpdLmt"] = "Speed Limit Braking",
+            ["Collision"] = "COLLISION AVOIDANCE",
+            ["Reentry Limit"] = "Reentry: Speed Limiting",
+            ["Reentry vSpd"] = "Reentry: Vertical Speed Check",
+            ["AP Brk"] = "Autopilot: Braking",
+            ["AP Finalizing"] = "Autopilot: Final Approach",
+            ["PvP Prevent"] = "PvP Boundary Protection",
+            ["Prevent PvP"] = "PvP Boundary Protection",
+            ["Space Arrival"] = "Arrived at Space Target",
+            ["Landing"] = "Landing in Progress",
+            ["AGG Hold"] = "AGG: Holding Altitude",
+            ["AGG Align"] = "AGG: Aligning",
+            ["Follow"] = "Follow Mode: Braking",
+            ["Follow Off"] = "Follow Mode: Disabled",
+            ["Manual"] = "Manual Brake",
+        }
         local function DrawWarnings(newContent)
 
             newContent[#newContent + 1] = cachedVersionText
@@ -387,8 +421,8 @@ function HudClass(Nav, c, u, s, atlas, antigrav, hover, shield, warpdrive, weapo
 
             if BrakeIsOn then
                 local bkStr = ""
-                if type(BrakeIsOn) == "string" then bkStr="-"..BrakeIsOn end
-                newContent[#newContent + 1] = svgText(warningX, brakeY, "Brake Engaged"..bkStr, "warnings")
+                if type(BrakeIsOn) == "string" then bkStr = " - "..(statusLabels[BrakeIsOn] or BrakeIsOn) end
+                newContent[#newContent + 1] = svgText(warningX, brakeY, "Brakes"..bkStr, "warnings")
             elseif brakeInput2 > 0 then
                 newContent[#newContent + 1] = svgText(warningX, brakeY, "Auto-Brake Engaged", "warnings", "opacity:"..brakeInput2)
             end
@@ -429,10 +463,18 @@ function HudClass(Nav, c, u, s, atlas, antigrav, hover, shield, warpdrive, weapo
                 newContent[#newContent + 1] = svgText(warningX, hoverY,"Hover Height: ".. displayText,"warn") 
             end
 
+            if inAtmo and AtmoSpeedAssist and throttleMode then
+                local ptPct = mfloor(PlayerThrottle * 100)
+                local spdStr = stringf("Throttle: %d%% | Cruise: %d kph", ptPct, mfloor(adjustedAtmoSpeedLimit))
+                if ThrottleLimited then
+                    spdStr = spdStr.." (limited)"
+                end
+                newContent[#newContent + 1] = svgText(warningX, brakeY+20, spdStr, "warn")
+            end
             if isBoosting then
 
                 newContent[#newContent + 1] = svgText(warningX, ewarpY+20, "ROCKET BOOST ENABLED", "warn")
-            end           
+            end
 
             if antigrav and not ExternalAGG and antigravOn and AntigravTargetAltitude ~= nil then
 
@@ -442,12 +484,16 @@ function HudClass(Nav, c, u, s, atlas, antigrav, hover, shield, warpdrive, weapo
             end
             if Autopilot and AutopilotTargetName ~= "None" then
                 newContent[#newContent + 1] = svgText(warningX, apY,  "Autopilot "..AutopilotStatus, "warn")
+                if AutopilotStatus == "Aligning" and alignmentProgress < 0.99 then
+                    newContent[#newContent + 1] = svgText(warningX, apY+20, stringf("Aligning: %d%%", mfloor(alignmentProgress * 100)), "warn")
+                end
             elseif LockPitch ~= nil then
                 newContent[#newContent + 1] = svgText(warningX, apY+20, stringf("LockedPitch: %d", mfloor(LockPitch)), "warn")
             elseif followMode then
                 newContent[#newContent + 1] = svgText(warningX, apY+20, "Follow Mode Engaged", "warn")
             elseif Reentry or finalLand then
-                newContent[#newContent + 1] = svgText(warningX, apY+20, "Re-entry in Progress", "warn")
+                local reMode = reentryModePreference and "Glide" or "Parachute"
+                newContent[#newContent + 1] = svgText(warningX, apY+20, "Re-entry in Progress ("..reMode..")", "warn")
             end
             if AltitudeHold or VertTakeOff then
                 local displayText = getDistanceDisplayString(HoldAltitude, 2)
@@ -485,21 +531,41 @@ function HudClass(Nav, c, u, s, atlas, antigrav, hover, shield, warpdrive, weapo
             end
             if BrakeLanding then
                     local str = "Brake Landing"
-                    if alignHeading then str = str.."-Aligning" end
-                    if apBrk then str = str.."-Drift Limited" end
+                    if alignHeading then str = str.." - Aligning to Heading" end
+                    if apBrk then str = str.." - Drift Limited" end
                     newContent[#newContent + 1] = svgText(warningX, apY, str, "warnings")
+                    if landingGroundDist > 0 then
+                        local safeClass = landingSafe and "warn" or "warnings"
+                        local safeStr = landingSafe and "Safe" or "CLOSE"
+                        newContent[#newContent + 1] = svgText(warningX, apY+20,
+                            stringf("Stop: %s | Ground: %s | %s",
+                                getDistanceDisplayString(landingStopDist),
+                                getDistanceDisplayString(landingGroundDist),
+                                safeStr), safeClass)
+                    end
             end
             if ProgradeIsOn then
                 newContent[#newContent + 1] = svgText(warningX, apY+20, "Prograde Alignment", "crit")
+                if alignmentProgress < 0.99 then
+                    newContent[#newContent + 1] = svgText(warningX, apY+40, stringf("Aligning: %d%%", mfloor(alignmentProgress * 100)), "warn")
+                end
             end
             if RetrogradeIsOn then
                 newContent[#newContent + 1] = svgText(warningX, apY, "Retrograde Alignment", "crit")
+                if alignmentProgress < 0.99 then
+                    newContent[#newContent + 1] = svgText(warningX, apY+20, stringf("Aligning: %d%%", mfloor(alignmentProgress * 100)), "warn")
+                end
             end
 
             if collisionAlertStatus then
                 local alertClass
-                if string.find(collisionAlertStatus, "COLLISION") then alertClass = "warnings" else alertClass = "crit" end
-                newContent[#newContent + 1] = svgText(warningX, turnBurnY+20, collisionAlertStatus, alertClass)
+                if collisionTier >= 2 then alertClass = "warnings" else alertClass = "crit" end
+                local tierLabel = ""
+                if collisionTier == 1 then tierLabel = "CAUTION: "
+                elseif collisionTier == 2 then tierLabel = "WARNING: "
+                elseif collisionTier >= 3 then tierLabel = "EMERGENCY: "
+                end
+                newContent[#newContent + 1] = svgText(warningX, turnBurnY+20, tierLabel..collisionAlertStatus, alertClass)
             elseif atmosDensity == 0 and not Autopilot then
                 local intersectBody, atmoDistance = AP.checkLOS((constructVelocity):normalize())
                 if atmoDistance ~= nil and velMag > 0 then
@@ -514,7 +580,25 @@ function HudClass(Nav, c, u, s, atlas, antigrav, hover, shield, warpdrive, weapo
             if VectorToTarget and not IntoOrbit then
                 newContent[#newContent + 1] = svgText(warningX, apY+60, VectorStatus, "warn")
             end
-            if showHud and DisplayOdometer then 
+            -- Flight mode summary: compact line of all active systems
+            local modes = {}
+            if Autopilot then modes[#modes+1] = "AP" end
+            if AltitudeHold then modes[#modes+1] = "ALT" end
+            if VectorToTarget then modes[#modes+1] = "VEC" end
+            if IntoOrbit then modes[#modes+1] = "ORB" end
+            if BrakeLanding then modes[#modes+1] = "LAND" end
+            if VertTakeOff then modes[#modes+1] = "VTO" end
+            if AutoTakeoff then modes[#modes+1] = "ATO" end
+            if Reentry then modes[#modes+1] = "RE" end
+            if ProgradeIsOn then modes[#modes+1] = "PRO" end
+            if RetrogradeIsOn then modes[#modes+1] = "RET" end
+            if autoRoll then modes[#modes+1] = "AROL" end
+            if CollisionSystem then modes[#modes+1] = "COL" end
+            if AtmoSpeedAssist and throttleMode and inAtmo then modes[#modes+1] = "SPD" end
+            if #modes > 0 then
+                newContent[#newContent + 1] = svgText(warningX, cry(180), table.concat(modes, " | "), "dim")
+            end
+            if showHud and DisplayOdometer then
                 newContent[#newContent + 1] = odomButtons
             end
             return newContent
