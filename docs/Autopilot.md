@@ -98,6 +98,22 @@ The output is sent to a linked screen for copy-paste into your `privatelocations
 
 ---
 
+## Quick Navigation
+
+### `/nearest` -- Find Closest Waypoint
+
+Type `/nearest` in Lua chat to automatically select the closest saved waypoint in the IPH and show its distance. Then press **ALT-4** to fly there.
+
+### `/return` -- Return to Takeoff Position
+
+Type `/return` to set the autopilot destination back to where you last took off from. Your takeoff position is saved automatically each time you retract landing gear.
+
+### Paste-to-Fly
+
+Paste a `::pos{...}` string into Lua chat. The HUD will show the destination name and distance, then prompt you to press **ALT-4** to engage autopilot.
+
+---
+
 ## Autopilot Usage
 
 > **WARNING:** Do NOT use autopilot to fly to a moon surface. The autopilot will place you in orbit around moons rather than landing on them.
@@ -175,6 +191,28 @@ Aligning: 87%
 ```
 
 This shows how close the ship is to completing its alignment before the next autopilot phase begins.
+
+---
+
+## ETA Display
+
+While autopilot is active and the ship is moving, the HUD shows an estimated time of arrival and remaining distance below the autopilot status:
+
+```
+ETA: 5m 30s | 1.23 su
+```
+
+This updates in real time as your speed and distance change.
+
+---
+
+## Pre-Flight Warnings
+
+When engaging autopilot, the system performs automatic checks and warns you about potential issues:
+
+- **Low thrust-to-weight ratio** -- Ship may be too heavy for available thrust.
+- **Collision system without radar** -- Collision avoidance is enabled but no radar is linked.
+- **No space fuel tanks** -- Interplanetary trip detected but no space fuel tanks found on the construct.
 
 ---
 

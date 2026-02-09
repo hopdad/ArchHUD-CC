@@ -48,6 +48,7 @@ function ControlClass(Nav, c, u, s, atlas, vBooster, hover, antigrav, shield, db
                 Nav.control.deployLandingGears() -- Actually extend
             end
         else
+            lastTakeoffPos = worldPos -- Save for /return command
             if BrakeLanding then BrakeLanding = false end
             if hasGear then
                 play("grIn","LG",1)
@@ -631,6 +632,10 @@ function ControlClass(Nav, c, u, s, atlas, vBooster, hover, antigrav, shield, db
                 "/deletewp - Deletes current selected custom wp\n"..
                 "/createPrivate (all) - dumps private lcoations to screen if present to cut and paste to privatelocations.lua, all if present will make it include all databank locations.\n"..
                 "/trans (whatever) - shows the current transponder setting, whatever, if present, is the new tag that is set.\n"..
+                "/reentry - Toggle between Glide and Parachute reentry modes\n"..
+                "/resumeroute - Restore route after collision avoidance\n"..
+                "/return - Set autopilot back to your last takeoff position\n"..
+                "/nearest - Select the closest saved waypoint in IPH\n"..
                 "/pipecenter - Shows a waypoint to closest pipe center and prints loc in lua chat and sets it to 1-Temp in IPH for use with autopilot"
         i = string.find(text, " ")
         command = text
@@ -816,6 +821,57 @@ function ControlClass(Nav, c, u, s, atlas, vBooster, hover, antigrav, shield, db
                 msg("Route restored: "..#apRoute.." waypoints. Engage autopilot to continue.")
             else
                 msg("No saved route to resume")
+            end
+        elseif command == "/return" then
+            if Autopilot or VectorToTarget then
+                msg("Disengage autopilot before using /return")
+            elseif lastTakeoffPos then
+                local pos = "::pos{0,0,"..lastTakeoffPos.x..","..lastTakeoffPos.y..","..lastTakeoffPos.z.."}"
+                AddNewLocationByWaypoint("0-Return", pos, true)
+                local dist = (AutopilotTargetCoords - worldPos):len()
+                local distStr
+                if dist > 200000 then
+                    distStr = string.format("%.2f su", dist / 200000)
+                elseif dist > 1000 then
+                    distStr = string.format("%.1f km", dist / 1000)
+                else
+                    distStr = string.format("%.0f m", dist)
+                end
+                msg("Return point set: "..distStr.." away. Alt-4 to engage autopilot.")
+            else
+                msg("No takeoff position saved yet")
+            end
+        elseif command == "/nearest" then
+            if Autopilot or VectorToTarget then
+                msg("Disengage autopilot before using /nearest")
+            else
+                local bestDist = math.huge
+                local bestIdx = 0
+                for i, entry in ipairs(AtlasOrdered) do
+                    local wp = atlas[0][entry.index]
+                    if wp and wp.position and not wp.center then
+                        local d = (wp.position - worldPos):len()
+                        if d < bestDist then
+                            bestDist = d
+                            bestIdx = i
+                        end
+                    end
+                end
+                if bestIdx > 0 then
+                    AutopilotTargetIndex = bestIdx
+                    ATLAS.UpdateAutopilotTarget()
+                    local distStr
+                    if bestDist > 200000 then
+                        distStr = string.format("%.2f su", bestDist / 200000)
+                    elseif bestDist > 1000 then
+                        distStr = string.format("%.1f km", bestDist / 1000)
+                    else
+                        distStr = string.format("%.0f m", bestDist)
+                    end
+                    msg("Nearest: "..AutopilotTargetName.." ("..distStr.."). Alt-4 to engage.")
+                else
+                    msg("No saved waypoints found")
+                end
             end
         elseif command == "/pipecenter" then
             if Autopilot then

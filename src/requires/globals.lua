@@ -184,5 +184,6 @@ local function _A(n)return{set=function(i)_G[n]=i end,get=function()return _G[n]
         collisionTier = 0 -- Collision: 0=none, 1=caution(30s), 2=warning(10s), 3=emergency
         collisionSavedRoute = {} -- Collision: saved route for resume after avoidance
         reentryModePreference = false -- Reentry: false=parachute, true=glide (toggled by pilot)
+        lastTakeoffPos = nil -- Saved position on takeoff for /return command
         if shield then shieldPercent = mfloor(0.5 + shield.getShieldHitpoints() * 100 / shield.getMaxShieldHitpoints()) end
     end

@@ -624,7 +624,13 @@ function APClass(Nav, c, u, atlas, vBooster, hover, telemeter_1, antigrav, dbHud
             end
             AutopilotTargetIndex = (#apRoute>0 and not finalLand) and getIndex(apRoute[1]) or AutopilotTargetIndex
             ATLAS.UpdateAutopilotTarget()
-            if #apRoute>0 and not finalLand then 
+            if CustomTarget and CustomTarget.planetname ~= planet.name and CustomTarget.planetname ~= "Space" then
+                if #spaceTanks == 0 then
+                    msg("WARNING: No space fuel tanks detected for interplanetary trip")
+                    msgTimer = 5
+                end
+            end
+            if #apRoute>0 and not finalLand then
                 msg("Route Autopilot in Progress")
                 if (CustomTarget.position - worldPos):project_on_plane(worldVertical):len() > 50000 and CustomTarget.planetname == planet.name then 
                     routeOrbit=true
@@ -743,7 +749,26 @@ function APClass(Nav, c, u, atlas, vBooster, hover, telemeter_1, antigrav, dbHud
             msg("Current Route Cleared")
         else
             apRoute[#apRoute+1]=CustomTarget.name
-            msg("Added "..CustomTarget.name.." to route. ")
+            local totalDist = 0
+            local prevPos = worldPos
+            for ri = 1, #apRoute do
+                for _, v in pairs(atlas[0]) do
+                    if v.name == apRoute[ri] and v.position then
+                        totalDist = totalDist + (v.position - prevPos):len()
+                        prevPos = v.position
+                        break
+                    end
+                end
+            end
+            local distStr
+            if totalDist > 200000 then
+                distStr = string.format("%.2f su", totalDist / 200000)
+            elseif totalDist > 1000 then
+                distStr = string.format("%.1f km", totalDist / 1000)
+            else
+                distStr = string.format("%.0f m", totalDist)
+            end
+            msg("Route: " .. #apRoute .. " legs, " .. distStr .. " total. Added " .. CustomTarget.name)
         end
         return apRoute
     end

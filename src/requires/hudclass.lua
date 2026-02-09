@@ -487,6 +487,10 @@ function HudClass(Nav, c, u, s, atlas, antigrav, hover, shield, warpdrive, weapo
                 newContent[#newContent + 1] = svgText(warningX, apY,  "Autopilot "..AutopilotStatus, "warn")
                 if AutopilotStatus == "Aligning" and alignmentProgress < 0.99 then
                     newContent[#newContent + 1] = svgText(warningX, apY+20, stringf("Aligning: %d%%", mfloor(alignmentProgress * 100)), "warn")
+                elseif travelTime and travelTime > 0 and velMag > 1 then
+                    local targetDist = AutopilotTargetCoords and (AutopilotTargetCoords - worldPos):len() or 0
+                    local etaStr = "ETA: " .. FormatTimeString(travelTime) .. " | " .. getDistanceDisplayString(targetDist)
+                    newContent[#newContent + 1] = svgText(warningX, apY+20, etaStr, "warn")
                 end
             elseif LockPitch ~= nil then
                 newContent[#newContent + 1] = svgText(warningX, apY+20, stringf("LockedPitch: %d", mfloor(LockPitch)), "warn")
