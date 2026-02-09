@@ -1,64 +1,78 @@
+# ArchHUD
 
-<!--Intro information-->
-# Arch-Orbital-HUD
-## A general purpose HUD for Dual Universe, based on DU Orbital Hud 5.450 and earlier
+A feature-rich flight HUD for Dual Universe with full autopilot, orbital mechanics, and ship management.
 
-### NOTE: Version 1.7XX+ is a modular version that uses require files and will not work on GeForce Now. Use version ArchHUDGFN.conf for GEForce Now.
+For help: [OSIN Discord](https://discord.gg/9RD3xQfYXG) | [Archaegeo Discord](https://discord.gg/CNRE45xRu7)
 
-###### For assistance, see the OSIN discord channel [Discord](https://discord.gg/9RD3xQfYXG) or my personal [Discord](https://discord.gg/CNRE45xRu7)
-###### Donations are accepted but not expected. You may donate to Archaegeo in game via Wallet or to https://paypal.me/archaegeo for Paypal.
+## Features
 
-Please see the [User manual](https://docs.google.com/document/d/13-Kz1pqbbIHq8HTFLVG1r58D9zxsJe8_eTXezuryfPg/edit?usp=sharing) for installation and details on use
+- **Full Autopilot** -- Planet-to-planet, surface-to-surface, orbital hops, multipoint routes
+- **Brake Landing** -- Automated safe descent with landing feedback
+- **Altitude Hold / Orbit** -- Atmospheric altitude hold, orbital establishment and maintenance
+- **Glide and Parachute Re-Entry** -- Two re-entry modes with pilot-selectable preference
+- **Collision Avoidance** -- Graduated 3-tier system (caution / warning / emergency)
+- **Speed Management** -- Atmospheric speed limiter with throttle assist
+- **HUD Display** -- NavBall, altimeter, fuel gauges, radar, shield, orbit map, damage monitoring
+- **AGG Support** -- Full anti-gravity generator integration with saved waypoint heights
+- **ECU Support** -- Full HUD on Emergency Control Unit with safety braking
+- **Customizable** -- 80+ user variables for colors, positions, flight physics, and behavior
 
----
+See the [full documentation](docs/Home.md) for details on every feature.
 
-## Programming Board Add-ons
+## Installation
 
-ArchHUD can publish telemetry data to your databank, which standalone programming boards read and display on screens. These are optional — install any or all of them.
+1. Download `ArchHUD.zip` from the [Releases](https://github.com/hopdad/ArchHUD-CC/releases) page
+2. Extract into your DU `autoconf/custom` folder, keeping subfolders:
+   - Default: `C:\ProgramData\Dual Universe\Game\data\lua\autoconf\custom`
+   - Steam: `C:\Program Files (x86)\Steam\steamapps\common\Dual Universe\data\lua\autoconf\custom`
+3. In-game: right-click your seat/remote/ECU:
+   - **Advanced > Update custom autoconflist**
+   - **Advanced > Run custom autoconfigure > ArchHud**
+4. Link a **databank** to the control unit for settings persistence
 
-### Requirements
+The zip contains `ArchHUD.conf`, `Arch-ECU.conf`, and the `archhud/` require folder.
 
-- Your existing ArchHUD seat/ECU with a linked databank (`dbHud`)
-- One **Programming Board** per add-on
-- One **Screen** (M or L recommended) per add-on
+## Board Add-ons
 
-### Available Boards
+Optional programming board scripts that display telemetry from your ArchHUD databank on screens.
 
-| Board | File | Description |
-|-------|------|-------------|
-| **Radar Tactical Display** | `ArchHUD-Radar.conf` | Contact table sorted by distance, PVP/safe zone indicator, threat count, friendly/unknown status, color-coded proximity warnings |
-| **Damage Report** | `ArchHUD-Damage.conf` | Ship integrity percentage with color gradient bar, paginated element-by-element breakdown with HP bars, auto-cycling pages |
-| **Telemetry Dashboard** | `ArchHUD-Telemetry.conf` | Flight data (speed, altitude, throttle), autopilot status, fuel levels with bars, ship info and odometer |
-| **Flight Recorder** | `ArchHUD-Recorder.conf` | Black box that records 30 minutes of speed, altitude, and vertical speed as scrolling line charts. Persists across restarts |
-| **Route Planner** | `ArchHUD-Route.conf` | Displays active autopilot route with waypoint list, leg distances, ETAs, progress bar, and saved route preview |
+| Board | Description |
+|-------|-------------|
+| [Telemetry Dashboard](board/TelemetryBoard.lua) | Flight data, autopilot status, fuel levels |
+| [Radar Display](board/RadarDisplay.lua) | Contact table with threat assessment |
+| [Damage Report](board/DamageDisplay.lua) | Ship integrity and element-by-element breakdown |
+| [Flight Recorder](board/FlightRecorder.lua) | 30-minute black box with scrolling charts |
+| [Route Planner](board/RoutePlanner.lua) | Route visualization with ETAs and progress |
 
-### Installation (per board)
+Setup: Link a programming board to your ArchHUD databank (`db` slot) and a screen (`screen` slot), paste the Lua, and activate.
 
-1. Place a **Programming Board** and a **Screen** on your construct
-2. Link the programming board to your **existing ArchHUD databank** (the same one your seat uses) as the `db` slot
-3. Link the programming board to the **screen** as the `screen` slot
-4. Right-click the programming board > **Advanced** > **Paste Lua configuration from clipboard**
-5. Paste the contents of the `.conf` file for the board you want
-6. Activate the programming board (right-click > Activate, or wire to a switch/button)
+## Quick Reference
 
-The boards will display "AWAITING DATA" until you sit in your ArchHUD seat, which starts publishing telemetry to the databank.
+| Key | Action |
+|-----|--------|
+| G | Brake land / takeoff |
+| Alt-4 | Autopilot to selected waypoint |
+| Alt-6 | Altitude hold (atmo) / orbit (space) |
+| Alt-1/2 | Cycle waypoints |
+| CTRL | Toggle brakes |
+| Alt-3 | Toggle HUD display |
 
-### How It Works
+See [Keybinds](docs/Keybinds.md) for the full reference.
 
-The telemetry system uses a publish/subscribe pattern through the shared databank:
+## Documentation
 
-- **ArchHUD seat** writes flight, autopilot, fuel, ship, radar, damage, and route data to `T_` prefixed keys in the databank at different intervals (1s / 2s / 3s / 10s)
-- **Each programming board** reads those keys on its own timer, decodes the JSON, and renders an SVG dashboard to its linked screen
-- Boards are fully independent — add or remove any combination without affecting ArchHUD or each other
+Full documentation is in the [docs/](docs/Home.md) folder:
 
----
+- [Installation](docs/Installation.md) -- Setup and configuration
+- [Flight Controls](docs/Flight-Controls.md) -- All flight features
+- [Autopilot](docs/Autopilot.md) -- Waypoints, routes, scenarios
+- [HUD Display](docs/HUD-Display.md) -- UI elements and status codes
+- [Settings](docs/Settings.md) -- All 80+ user variables
+- [Chat Commands](docs/Chat-Commands.md) -- Lua chat command reference
+- [Keybinds](docs/Keybinds.md) -- Complete keybind table
 
-### Credits
+## Credits
 
-Rezoix and his HUD - https://github.com/Rezoix/DU-hud
-
-JayleBreak and his orbital maths/atlas - https://gitlab.com/JayleBreak/dualuniverse/-/tree/master/DUflightfiles/autoconf/custom
-
-Dimencia and all of his hard math work on the autopilot and other features.
-
-
+- Rezoix -- [DU-hud](https://github.com/Rezoix/DU-hud)
+- JayleBreak -- [Orbital math and atlas](https://gitlab.com/JayleBreak/dualuniverse/-/tree/master/DUflightfiles/autoconf/custom)
+- Dimencia -- Autopilot math and core features
