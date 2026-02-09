@@ -185,7 +185,7 @@ end
 
 script = {}  -- wrappable container for all the code
 
-VERSION_NUMBER = 2.105
+VERSION_NUMBER = 2.200
 
 
 -- DU Events written for wrap and minimization. Written by Dimencia and Archaegeo. Optimization and Automation of scripting by ChronosWS  Linked sources where appropriate, most have been modified.
