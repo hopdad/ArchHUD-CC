@@ -668,6 +668,18 @@ function ControlClass(Nav, c, u, s, atlas, vBooster, hover, antigrav, shield, db
                 local pos = string.sub(argument, i)
                 pos = pos:gsub("%s+", "")
                 AddNewLocationByWaypoint(savename, pos, temp)
+                if temp and AutopilotTargetCoords then
+                    local dist = (AutopilotTargetCoords - worldPos):len()
+                    local distStr
+                    if dist > 200000 then
+                        distStr = string.format("%.2f su", dist / 200000)
+                    elseif dist > 1000 then
+                        distStr = string.format("%.1f km", dist / 1000)
+                    else
+                        distStr = string.format("%.0f m", dist)
+                    end
+                    msg("Destination: " .. distStr .. " away. Alt-4 to engage autopilot.")
+                end
             else
                 msg("Disengage Autopilot before adding waypoints")
             end
