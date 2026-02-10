@@ -2,10 +2,27 @@
 -- Reads damage telemetry (T_damage) from a shared databank and renders a full-screen
 -- damage report on a linked screen using setHTML() with SVG.
 --
+-- ═══════════════════════════════════════════════════════
+-- SETUP INSTRUCTIONS
+-- ═══════════════════════════════════════════════════════
+-- 1. Place a programming board, a screen, and link BOTH to the same databank
+--    used by your ArchHUD seat (the dbHud slot).
+-- 2. Right-click the programming board > Advanced > Edit Lua.
+-- 3. In the slot list (left side), rename the databank slot to "db"
+--    and the screen slot to "screen".
+-- 4. Select the filter: unit > onStart
+--    Paste this ENTIRE script into the code editor.
+-- 5. Add a NEW filter: unit > onTimer(timerId)
+--    Paste this single line:     onBoardTick(timerId)
+-- 6. Add a NEW filter: unit > onStop
+--    Paste this single line:     if screen then screen.setHTML("") end
+-- 7. Apply changes and activate the programming board.
+-- ═══════════════════════════════════════════════════════
+--
 -- The main ArchHUD publishes T_damage every 10 seconds while the pilot is seated.
 -- This board refreshes every 5 seconds.
 --
--- Slots:
+-- Slots (rename in the Lua editor slot list):
 --   db     = databank (same one linked to your seat/ECU as dbHud)
 --   screen = ScreenUnit
 --
@@ -345,31 +362,6 @@ function renderDashboard()
     return table.concat(svg)
 end
 
--- ═══════════════════════════════════════════════
--- Script Entry Points (called by conf handlers)
--- ═══════════════════════════════════════════════
-script = {}
-
-function script.onStart()
-    if not db then
-        system.print("ArchHUD Damage: No databank linked.")
-        return
-    end
-    if not screen then
-        system.print("ArchHUD Damage: No screen linked.")
-        return
-    end
-    unit.setTimer("refresh", 5)
-    system.print("ArchHUD Damage Report started.")
-    screen.setHTML(renderDashboard())
-end
-
-function script.onStop()
-    if screen then
-        screen.setHTML("")
-    end
-end
-
 --- Check damage data and write alert to databank if thresholds crossed
 local function checkAlerts()
     local damage = safeDecode("T_damage")
@@ -405,7 +397,11 @@ local function checkAlerts()
     end
 end
 
-function script.onTick(timerId)
+-- ═══════════════════════════════════════════════
+-- Timer callback (global so unit > onTimer can call it)
+-- In unit > onTimer, paste:  onBoardTick(timerId)
+-- ═══════════════════════════════════════════════
+function onBoardTick(timerId)
     if timerId == "refresh" then
         if screen and db then
             checkAlerts()
@@ -413,3 +409,18 @@ function script.onTick(timerId)
         end
     end
 end
+
+-- ═══════════════════════════════════════════════
+-- Auto-initialization (runs on unit > onStart)
+-- ═══════════════════════════════════════════════
+if not db then
+    system.print("ArchHUD Damage: No databank linked. Rename the databank slot to 'db' and restart.")
+    return
+end
+if not screen then
+    system.print("ArchHUD Damage: No screen linked. Rename the screen slot to 'screen' and restart.")
+    return
+end
+unit.setTimer("refresh", 5)
+system.print("ArchHUD Damage Report started.")
+screen.setHTML(renderDashboard())

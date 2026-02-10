@@ -1,6 +1,22 @@
 -- ArchHUD Radar Tactical Display - Programming Board Script
 -- Reads radar telemetry data from a shared databank and renders a tactical contact display on a linked screen.
--- Link this programming board to the SAME databank used by ArchHUD (dbHud slot) and a screen.
+--
+-- ═══════════════════════════════════════════════════════
+-- SETUP INSTRUCTIONS
+-- ═══════════════════════════════════════════════════════
+-- 1. Place a programming board, a screen, and link BOTH to the same databank
+--    used by your ArchHUD seat (the dbHud slot).
+-- 2. Right-click the programming board > Advanced > Edit Lua.
+-- 3. In the slot list (left side), rename the databank slot to "db"
+--    and the screen slot to "screen".
+-- 4. Select the filter: unit > onStart
+--    Paste this ENTIRE script into the code editor.
+-- 5. Add a NEW filter: unit > onTimer(timerId)
+--    Paste this single line:     onBoardTick(timerId)
+-- 6. Add a NEW filter: unit > onStop
+--    Paste this single line:     if screen then screen.setHTML("") end
+-- 7. Apply changes and activate the programming board.
+-- ═══════════════════════════════════════════════════════
 --
 -- Databank keys read:
 --   T_radar  = radar contact list and state (published by ArchHUD every 2s)
@@ -13,7 +29,7 @@
 -- Radar state codes:
 --   1=Operational, 0=Broken, -1=Jammed, -2=Obstructed, -3=In Use, -4=No Radar
 --
--- Slots:
+-- Slots (rename in the Lua editor slot list):
 --   db     = databank (same one linked to your seat/ECU as dbHud)
 --   screen = ScreenUnit
 
@@ -347,32 +363,6 @@ local function renderDashboard()
     return tblConcat(svg)
 end
 
--- ════════════════════════════════════════════
--- Script entry points (called by conf handlers)
--- ════════════════════════════════════════════
-script = {}
-
-function script.onStart()
-    if not db then
-        system.print("ArchHUD Radar: No databank linked. Link a databank and restart.")
-        return
-    end
-    if not screen then
-        system.print("ArchHUD Radar: No screen linked. Link a screen and restart.")
-        return
-    end
-    unit.setTimer("refresh", 2)
-    system.print("ArchHUD Radar Tactical Display started.")
-    -- Render once immediately
-    screen.setHTML(renderDashboard())
-end
-
-function script.onStop()
-    if screen then
-        screen.setHTML("")
-    end
-end
-
 --- Check radar data and write alert to databank if new threats detected
 local function checkAlerts()
     local radar = safeDecode("T_radar")
@@ -426,7 +416,11 @@ local function checkAlerts()
     end
 end
 
-function script.onTick(timerId)
+-- ════════════════════════════════════════════
+-- Timer callback (global so unit > onTimer can call it)
+-- In unit > onTimer, paste:  onBoardTick(timerId)
+-- ════════════════════════════════════════════
+function onBoardTick(timerId)
     if timerId == "refresh" then
         if screen and db then
             checkAlerts()
@@ -434,3 +428,18 @@ function script.onTick(timerId)
         end
     end
 end
+
+-- ════════════════════════════════════════════
+-- Auto-initialization (runs on unit > onStart)
+-- ════════════════════════════════════════════
+if not db then
+    system.print("ArchHUD Radar: No databank linked. Rename the databank slot to 'db' and restart.")
+    return
+end
+if not screen then
+    system.print("ArchHUD Radar: No screen linked. Rename the screen slot to 'screen' and restart.")
+    return
+end
+unit.setTimer("refresh", 2)
+system.print("ArchHUD Radar Tactical Display started.")
+screen.setHTML(renderDashboard())

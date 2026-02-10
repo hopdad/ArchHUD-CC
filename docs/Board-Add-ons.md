@@ -1,20 +1,94 @@
 # Board Add-ons
 
-Programming board add-on scripts that display data from the ArchHUD telemetry system. These are standalone Lua files located in the `board/` folder of the repository.
+Programming board add-on scripts that display data from the ArchHUD telemetry system on physical screens. These are standalone Lua files located in the `board/` folder of the repository.
+
+Each add-on runs on its own programming board and screen, reading telemetry data from the same databank used by your ArchHUD seat.
+
+---
 
 ## Requirements
 
-- A programming board
-- The same databank linked to your ArchHUD seat (the `dbHud` slot)
-- A screen (ScreenUnit)
-- Link both the databank and screen to the programming board
+- A **programming board** (one per add-on)
+- The **same databank** linked to your ArchHUD seat (the `dbHud` slot)
+- A **screen** (ScreenUnit) -- any size works; larger screens show more detail
+- Link **both** the databank and screen to the programming board
 
-## Installation
+> **Note:** You can run multiple add-ons simultaneously on separate programming boards, all sharing the same databank. The pilot must be seated for telemetry data to be published.
 
-1. Download the desired `.lua` file from the `board/` folder in the repository.
-2. In-game: right-click the programming board, then select Advanced > Edit Lua.
-3. Paste the script contents into the `onStart` handler of the unit.
-4. Activate the programming board.
+---
+
+## Installation (Step by Step)
+
+Every add-on follows the same installation process. These steps use the Telemetry Dashboard as an example, but the process is identical for all five add-ons.
+
+### 1. Place and Link Elements
+
+1. Place a **programming board** on your construct.
+2. Place a **screen** (ScreenUnit) near the programming board.
+3. Use the link tool to link the **databank** (the same one your ArchHUD seat uses) to the programming board.
+4. Use the link tool to link the **screen** to the programming board.
+
+You should now have two links going into the programming board: one to the databank and one to the screen.
+
+### 2. Open the Lua Editor
+
+1. Right-click the programming board.
+2. Select **Advanced > Edit Lua**.
+
+### 3. Rename Slots
+
+In the Lua editor, you will see a **slot list** on the left side. The linked elements appear as slots with auto-generated names like `slot1`, `slot2`, etc.
+
+1. Click on the slot that corresponds to your **databank** and rename it to exactly: **`db`**
+2. Click on the slot that corresponds to your **screen** and rename it to exactly: **`screen`**
+
+> **Important:** The slot names must match exactly (`db` and `screen`). If the names are wrong, the script will print an error message in the Lua chat when activated.
+
+### 4. Paste the Script into onStart
+
+1. In the filter/event list, select: **unit > onStart**
+2. Open the `.lua` file for the add-on you want (e.g., `TelemetryBoard.lua`).
+3. Copy the **entire** contents of the file.
+4. Paste it into the code editor panel for `unit > onStart`.
+
+### 5. Add the Timer Handler
+
+1. Click **Add Filter** (or the + button) to create a new event handler.
+2. Select: **unit > onTimer(timerId)**
+3. Paste this single line into the code editor:
+
+```lua
+onBoardTick(timerId)
+```
+
+### 6. Add the Stop Handler
+
+1. Click **Add Filter** again to create another event handler.
+2. Select: **unit > onStop**
+3. Paste this single line into the code editor:
+
+```lua
+if screen then screen.setHTML("") end
+```
+
+### 7. Activate
+
+1. Click **Apply** to save your changes.
+2. Close the Lua editor.
+3. Right-click the programming board and select **Activate** (or use an activation switch).
+
+The screen should display the add-on interface. If you see "AWAITING DATA", make sure a pilot is seated in the ArchHUD seat so telemetry is being published.
+
+### Troubleshooting
+
+| Symptom | Cause | Fix |
+|---------|-------|-----|
+| Screen stays blank | Missing onTimer handler | Add `onBoardTick(timerId)` to unit > onTimer |
+| Screen stays blank | Slot names wrong | Rename slots to exactly `db` and `screen` |
+| "No databank linked" in chat | Databank not linked or slot not renamed | Re-link databank and rename slot to `db` |
+| "No screen linked" in chat | Screen not linked or slot not renamed | Re-link screen and rename slot to `screen` |
+| "AWAITING DATA" on screen | No pilot seated / telemetry not publishing | Sit in the ArchHUD seat to start telemetry |
+| Data shows "Xs AGO" | Pilot stood up | Data goes stale when no one is seated |
 
 ---
 
@@ -22,51 +96,81 @@ Programming board add-on scripts that display data from the ArchHUD telemetry sy
 
 ### Telemetry Dashboard (`TelemetryBoard.lua`)
 
-Comprehensive flight data display showing:
+Comprehensive flight data display. Refreshes every 1 second.
 
-- **Speed** -- ground speed, vertical speed, orbital velocity
-- **Position** -- altitude, AGL, planet/body
-- **Navigation** -- heading, pitch, roll, autopilot status
-- **Fuel levels** -- atmo, space, rocket percentages
-- **Ship status** -- mass, brake info, engine status
+**Panels:**
 
-Refreshes every 2 seconds from telemetry databank keys (prefixed with `T_`).
+- **Flight Data** -- ground speed (km/h and m/s), altitude, vertical speed, atmosphere density, throttle percentage, and status indicators (in-atmo, gear, brake, near-planet).
+- **Autopilot** -- engagement status, current phase, target name, distance to target, brake distance, and mode indicators (altitude hold, turn & burn, orbit, reentry).
+- **Fuel** -- atmo, space, and rocket fuel levels with color-coded percentage bars. Turns orange below 25% and red below 10%.
+- **Ship Status** -- shield percentage, total mass, odometer (total distance traveled), and flight time.
+
+**Databank keys read:** `T_flight`, `T_ap`, `T_ship`, `T_fuel`
 
 ### Radar Tactical Display (`RadarDisplay.lua`)
 
-Real-time radar contact visualization:
+Real-time radar contact visualization. Refreshes every 2 seconds.
 
-- Color-coded contacts by type (hostile = red, friendly = green, abandoned = yellow, unknown = neutral)
-- Contact details: name, distance, speed, size category
-- Sorted by distance
-- Shows total contact counts by category
+**Features:**
+
+- Color-coded contacts: hostile/unknown in PVP = red/amber, friendly = green, static = gray
+- Contact table with name, distance, size category (XS/S/M/L), type (Dynamic/Static), and friendly status
+- Distance color-coding in PVP zones: red within 2 km, orange within 10 km
+- Radar status indicator (Operational, Broken, Jammed, Obstructed, No Radar)
+- Total contact count and PVP threat count
+- Sorted by distance (closest first), max 22 contacts displayed
+- **Alerts:** Writes threat warnings to the HUD via the alert channel (see below)
+
+**Databank keys read:** `T_radar`, `T_flight`, `T_ship`
 
 ### Damage Display (`DamageDisplay.lua`)
 
-Ship health monitoring:
+Ship health monitoring. Refreshes every 5 seconds with auto-paginating element list.
 
-- Per-element health status with percentage bars
-- Damaged elements highlighted in red/yellow
-- Total ship integrity percentage
-- Element counts by category (engines, wings, etc.)
+**Features:**
+
+- Large ship integrity percentage with color gradient (green > yellow > red)
+- Full-width integrity bar
+- Summary: damaged count, disabled count, total element count
+- Per-element detail table: name, type, HP bar, and HP values
+- Destroyed elements highlighted in red with "DESTROYED" label
+- Auto-paginates through damaged elements every 5 seconds
+- **Alerts:** Writes hull integrity warnings to the HUD via the alert channel (see below)
+
+**Databank keys read:** `T_damage`, `T_flight`
 
 ### Flight Recorder (`FlightRecorder.lua`)
 
-Flight data logging:
+Flight data logging with scrolling line charts. Records every 10 seconds, keeps 30 minutes of history.
 
-- Records position, speed, altitude, heading at regular intervals
-- Trip statistics (distance, time, avg speed, max speed)
-- Fuel consumption tracking
-- Visual flight log display
+**Features:**
+
+- Three stacked line charts: Speed (km/h), Altitude, and Vertical Speed
+- Auto-scaling Y-axis with grid lines and min/max readouts
+- Shared X-axis with time labels (now, 30s, 1m, 5m, etc.)
+- Recording status indicator (REC dot when actively recording)
+- Data persistence: history is saved to the databank and survives board restarts
+- Recording duration display
+- **Alerts:** Writes anomaly warnings (rapid altitude loss, sudden deceleration) to the HUD
+
+**Databank keys read:** `T_flight`
+**Databank keys written:** `T_history` (flight recording buffer)
 
 ### Route Planner (`RoutePlanner.lua`)
 
-Route visualization and management:
+Route visualization and management. Refreshes every 3 seconds.
 
-- Displays all waypoints in the current route
-- Shows leg distances and estimated travel times
-- Total route distance and time
-- Visual waypoint list with current leg highlighted
+**Features:**
+
+- Route progress bar with waypoint markers and completion percentage
+- Summary stats: total distance, remaining distance, ETA, current speed, waypoint count
+- Waypoint list with visual connector lines between legs
+- Current target highlighted with double-ring indicator
+- Per-waypoint data: name, planet, leg distance, distance from ship, ETA
+- Saved route display when no active route is loaded
+- Autopilot status indicator
+
+**Databank keys read:** `T_route`, `T_ap`, `T_flight`
 
 ---
 
