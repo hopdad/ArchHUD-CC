@@ -8,3 +8,5 @@ scripts/work/**
 src/du
 src/du/**
 log.txt
+build/
+ReleaseNotes.md

@@ -45,6 +45,9 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
+          # Delete existing release with same tag if present (idempotent rebuild)
+          gh release delete "v${{ env.VERSION_NUMBER }}" --yes 2>/dev/null || true
+          git push --delete origin "v${{ env.VERSION_NUMBER }}" 2>/dev/null || true
           gh release create "v${{ env.VERSION_NUMBER }}" \
             --title "Release v${{ env.VERSION_NUMBER }}" \
             --notes-file ReleaseNotes.md \
