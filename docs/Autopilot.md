@@ -116,7 +116,7 @@ Paste a `::pos{...}` string into Lua chat. The HUD will show the destination nam
 
 ## Autopilot Usage
 
-> **Note:** Moon and asteroid landings use direct brake landing (no atmosphere). Ensure you have sufficient brakes for your ship mass.
+> **Note:** For moons and asteroids (no atmosphere), the autopilot will fly you there and brake to a safe stop, then hand control back to you for manual landing.
 
 Press **ALT-4** to engage autopilot to the currently selected IPH location. The autopilot behavior depends on where you are and where you are going.
 
@@ -155,9 +155,9 @@ Press **ALT-4** to engage autopilot to the currently selected IPH location. The 
 
 - **ALT-4:** Starts only if line of sight to the destination is clear. Performs normal interplanetary autopilot with landing at arrival.
 
-### 7. Moon or Asteroid Landing
+### 7. Moon or Asteroid Approach
 
-- **ALT-4:** Performs interplanetary autopilot to the moon/asteroid. Since there is no atmosphere, the autopilot uses direct brake landing instead of atmospheric re-entry. The ship decelerates using retrograde alignment and engine brakes, then descends to the surface.
+- **ALT-4:** Performs interplanetary autopilot to the moon/asteroid. Since there is no atmosphere (no hover engines, no drag), the autopilot brakes to a safe stop near the destination and hands control back to the pilot for manual landing. You will see "No atmosphere - braking to safe stop. Manual landing required."
 
 ---
 

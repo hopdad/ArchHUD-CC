@@ -993,15 +993,21 @@ function APClass(Nav, c, u, atlas, vBooster, hover, telemeter_1, antigrav, dbHud
             autoRoll = autoRollPreference
             AltitudeHold = false
         elseif not planet.hasAtmosphere then
-            -- No atmosphere (moon/asteroid): direct brake landing approach
+            -- No atmosphere (moon/asteroid): stop and hand off to pilot
+            -- Automated landing is unsafe without atmosphere (no hovers, no drag)
             Reentry = false
             AltitudeHold = false
-            BrakeLanding = true
+            BrakeLanding = false
+            Autopilot = false
+            VectorToTarget = false
+            AutoTakeoff = false
+            ProgradeIsOn = false
+            BrakeIsOn = "Moon Approach"
             StrongBrakes = true
-            autoRoll = true
-            BrakeIsOn = "BL Strong"
-            msg("No atmosphere - direct brake landing")
-            play("reOff", "RE")
+            AP.cmdThrottle(0)
+            msg("No atmosphere - braking to safe stop. Manual landing required.")
+            msgTimer = 10
+            play("apCom", "AP")
         elseif not reentryMode then-- Parachute ReEntry
             Reentry = true
             if navCom:getAxisCommandType(0) ~= controlMasterModeId.cruise then
@@ -1664,13 +1670,13 @@ function APClass(Nav, c, u, atlas, vBooster, hover, telemeter_1, antigrav, dbHud
                         BrakeIsOn = false
                         ProgradeIsOn = false
                         if spaceLand ~= 2 then reentryMode = reentryModePreference end
-                        if spaceLand == true then finalLand = true end
+                        if spaceLand == true then finalLand = planet.hasAtmosphere end
                         spaceLand = false
                         Autopilot = false
                         AP.BeginReentry()
                     end
-                elseif inAtmo and AtmoSpeedAssist then 
-                    AP.cmdThrottle(1)  
+                elseif inAtmo and AtmoSpeedAssist then
+                    AP.cmdThrottle(1)
                 end
             elseif velMag > minAutopilotSpeed then
                 AlignToWorldVector(constructVelocity, 0.01) 
@@ -1690,14 +1696,14 @@ function APClass(Nav, c, u, atlas, vBooster, hover, telemeter_1, antigrav, dbHud
                 if spaceLand ~= 2 then reentryMode = reentryModePreference end
                 AP.BeginReentry()
                 spaceLand = false
-                finalLand = true
+                finalLand = planet.hasAtmosphere
             else
                 spaceLand = false
                 if not aptoggle then aptoggle = true end
             end
         end
 
-        if finalLand and CustomTarget and (mabs(coreAltitude-HoldAltitude) < 500 or atmosDensity >= 0.11 or not planet.hasAtmosphere)
+        if finalLand and CustomTarget and (mabs(coreAltitude-HoldAltitude) < 500 or atmosDensity >= 0.11)
             and ((CustomTarget.position-worldPos):len() - mabs(coreAltitude - autopilotTargetPlanet:getAltitude(CustomTarget.position))) > 3000 then -- Only engage if far enough away to be able to turn back for it
 
                 if not aptoggle then aptoggle = true end
@@ -1885,7 +1891,7 @@ function APClass(Nav, c, u, atlas, vBooster, hover, telemeter_1, antigrav, dbHud
                         --BrakeIsOn = false -- Leave brakes on to be safe while we align prograde
                         AutopilotTargetCoords = CustomTarget.position -- For setting the waypoint
                         reentryMode = reentryModePreference
-                        finalLand = true
+                        finalLand = planet.hasAtmosphere
                         orbitalParams.VectorToTarget, orbitalParams.AutopilotAlign = false, false -- Let it disable orbit
                         AP.ToggleIntoOrbit()
                         AP.BeginReentry()
@@ -2724,7 +2730,7 @@ function APClass(Nav, c, u, atlas, vBooster, hover, telemeter_1, antigrav, dbHud
                             ProgradeIsOn = false
                             reentryMode = reentryModePreference
                             spaceLand = false
-                            finalLand = true
+                            finalLand = planet.hasAtmosphere
                             Autopilot = false
                             AP.BeginReentry()
                         end
