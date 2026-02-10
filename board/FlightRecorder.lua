@@ -1,9 +1,25 @@
 -- ArchHUD Flight Recorder (Black Box) - Programming Board Script
 -- Records flight telemetry snapshots from the shared databank and displays
 -- historical data as scrolling line charts on a linked screen.
--- Link this programming board to the SAME databank used by ArchHUD (dbHud slot) and a screen.
 --
--- Slots:
+-- ═══════════════════════════════════════════════════════
+-- SETUP INSTRUCTIONS
+-- ═══════════════════════════════════════════════════════
+-- 1. Place a programming board, a screen, and link BOTH to the same databank
+--    used by your ArchHUD seat (the dbHud slot).
+-- 2. Right-click the programming board > Advanced > Edit Lua.
+-- 3. In the slot list (left side), rename the databank slot to "db"
+--    and the screen slot to "screen".
+-- 4. Select the filter: unit > onStart
+--    Paste this ENTIRE script into the code editor.
+-- 5. Add a NEW filter: unit > onTimer(timerId)
+--    Paste this single line:     onBoardTick(timerId)
+-- 6. Add a NEW filter: unit > onStop
+--    Paste this single line:     if screen then screen.setHTML("") end
+-- 7. Apply changes and activate the programming board.
+-- ═══════════════════════════════════════════════════════
+--
+-- Slots (rename in the Lua editor slot list):
 --   db     = databank (same one linked to your seat/ECU as dbHud)
 --   screen = ScreenUnit
 --
@@ -493,38 +509,64 @@ function recordAndRender()
     screen.setHTML(render())
 end
 
--- ════════════════════════════════════════════
--- Script Entry Points (called by conf handlers)
--- ════════════════════════════════════════════
+--- Check recorded history for anomalies and write alert if detected
+local function checkAlerts()
+    local n = #history
+    if n < 4 then return end -- Need at least 4 snapshots (40s of data)
 
-script = {}
+    local cur = history[n]
+    local prev = history[n - 3] -- 30 seconds ago
+    local alertMsg = nil
 
-function script.onStart()
-    if not db then
-        system.print("ArchHUD Recorder: No databank linked.")
-        return
+    -- Alert: rapid altitude loss (>1000m in 30s while not near ground)
+    if prev.a and cur.a and prev.a > 500 then
+        local altDrop = prev.a - cur.a
+        if altDrop > 1000 then
+            alertMsg = stringf("ALERT: Rapid altitude loss! -%dm in 30s", mfloor(altDrop))
+        end
     end
-    if not screen then
-        system.print("ArchHUD Recorder: No screen linked.")
-        return
+
+    -- Alert: sudden speed loss (>50% drop in 30s, from >100 m/s)
+    if prev.s and cur.s and prev.s > 100 then
+        local spdDrop = prev.s - cur.s
+        if spdDrop > prev.s * 0.5 then
+            alertMsg = stringf("ALERT: Sudden deceleration! %.0f -> %.0f m/s", prev.s, cur.s)
+        end
     end
 
-    loadHistory()
-    unit.setTimer("refresh", RECORD_INTERVAL)
-    system.print("ArchHUD Flight Recorder started.")
-    recordAndRender()
+    if alertMsg then
+        db.setStringValue("A_recorder", jencode({
+            msg = alertMsg,
+            t = system.getArkTime()
+        }))
+    end
 end
 
-function script.onStop()
-    if screen then
-        screen.setHTML("")
-    end
-end
-
-function script.onTick(timerId)
+-- ════════════════════════════════════════════
+-- Timer callback (global so unit > onTimer can call it)
+-- In unit > onTimer, paste:  onBoardTick(timerId)
+-- ════════════════════════════════════════════
+function onBoardTick(timerId)
     if timerId == "refresh" then
         if screen and db then
             recordAndRender()
+            checkAlerts()
         end
     end
 end
+
+-- ════════════════════════════════════════════
+-- Auto-initialization (runs on unit > onStart)
+-- ════════════════════════════════════════════
+if not db then
+    system.print("ArchHUD Recorder: No databank linked. Rename the databank slot to 'db' and restart.")
+    return
+end
+if not screen then
+    system.print("ArchHUD Recorder: No screen linked. Rename the screen slot to 'screen' and restart.")
+    return
+end
+loadHistory()
+unit.setTimer("refresh", RECORD_INTERVAL)
+system.print("ArchHUD Flight Recorder started.")
+recordAndRender()

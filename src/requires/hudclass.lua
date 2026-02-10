@@ -434,6 +434,25 @@ function HudClass(Nav, c, u, s, atlas, antigrav, hover, shield, warpdrive, weapo
                     play("stall","SW",2)
                 end
             end
+            -- Persistent overweight warning
+            do
+                local grav = c.getGravityIntensity()
+                if grav > 0.1 and not GearExtended then
+                    local fwdDir = vec3(C.getOrientationForward())
+                    local thrustData = C.getMaxThrustAlongAxis('thrust analog longitudinal ', {fwdDir:unpack()})
+                    if inAtmo then
+                        local safeAtmo = 0.5 * thrustData[1] / grav
+                        if coreMass > safeAtmo then
+                            newContent[#newContent + 1] = svgText(warningX, apY+70, "** OVERWEIGHT **", "warnings")
+                        end
+                    else
+                        local safeSpace = 0.5 * thrustData[3] / grav
+                        if thrustData[3] > 0 and coreMass > safeSpace then
+                            newContent[#newContent + 1] = svgText(warningX, apY+70, "** OVERWEIGHT FOR SPACE **", "warnings")
+                        end
+                    end
+                end
+            end
             if ReversalIsOn then
                 newContent[#newContent + 1] = svgText(warningX, apY+90, "Flight Assist in Progress", "warnings")
             end
@@ -487,6 +506,10 @@ function HudClass(Nav, c, u, s, atlas, antigrav, hover, shield, warpdrive, weapo
                 newContent[#newContent + 1] = svgText(warningX, apY,  "Autopilot "..AutopilotStatus, "warn")
                 if AutopilotStatus == "Aligning" and alignmentProgress < 0.99 then
                     newContent[#newContent + 1] = svgText(warningX, apY+20, stringf("Aligning: %d%%", mfloor(alignmentProgress * 100)), "warn")
+                elseif travelTime and travelTime > 0 and velMag > 1 then
+                    local targetDist = AutopilotTargetCoords and (AutopilotTargetCoords - worldPos):len() or 0
+                    local etaStr = "ETA: " .. FormatTimeString(travelTime) .. " | " .. getDistanceDisplayString(targetDist)
+                    newContent[#newContent + 1] = svgText(warningX, apY+20, etaStr, "warn")
                 end
             elseif LockPitch ~= nil then
                 newContent[#newContent + 1] = svgText(warningX, apY+20, stringf("LockedPitch: %d", mfloor(LockPitch)), "warn")

@@ -98,9 +98,25 @@ The output is sent to a linked screen for copy-paste into your `privatelocations
 
 ---
 
+## Quick Navigation
+
+### `/nearest` -- Find Closest Waypoint
+
+Type `/nearest` in Lua chat to automatically select the closest saved waypoint in the IPH and show its distance. Then press **ALT-4** to fly there.
+
+### `/return` -- Return to Takeoff Position
+
+Type `/return` to set the autopilot destination back to where you last took off from. Your takeoff position is saved automatically each time you retract landing gear.
+
+### Paste-to-Fly
+
+Paste a `::pos{...}` string into Lua chat. The HUD will show the destination name and distance, then prompt you to press **ALT-4** to engage autopilot.
+
+---
+
 ## Autopilot Usage
 
-> **WARNING:** Do NOT use autopilot to fly to a moon surface. The autopilot will place you in orbit around moons rather than landing on them.
+> **Note:** For moons and asteroids (no atmosphere), the autopilot will fly you there and brake to a safe stop, then hand control back to you for manual landing.
 
 Press **ALT-4** to engage autopilot to the currently selected IPH location. The autopilot behavior depends on where you are and where you are going.
 
@@ -139,6 +155,10 @@ Press **ALT-4** to engage autopilot to the currently selected IPH location. The 
 
 - **ALT-4:** Starts only if line of sight to the destination is clear. Performs normal interplanetary autopilot with landing at arrival.
 
+### 7. Moon or Asteroid Approach
+
+- **ALT-4:** Performs interplanetary autopilot to the moon/asteroid. Since there is no atmosphere (no hover engines, no drag), the autopilot brakes to a safe stop near the destination and hands control back to the pilot for manual landing. You will see "No atmosphere - braking to safe stop. Manual landing required."
+
 ---
 
 ## Landing Behavior
@@ -175,6 +195,49 @@ Aligning: 87%
 ```
 
 This shows how close the ship is to completing its alignment before the next autopilot phase begins.
+
+---
+
+## ETA Display
+
+While autopilot is active and the ship is moving, the HUD shows an estimated time of arrival and remaining distance below the autopilot status:
+
+```
+ETA: 5m 30s | 1.23 su
+```
+
+This updates in real time as your speed and distance change.
+
+---
+
+## Pre-Flight Warnings
+
+When engaging autopilot, the system performs automatic checks and warns you about potential issues:
+
+- **Overweight for atmo engines** -- Ship mass exceeds what atmosphere engines can safely lift.
+- **Overweight for space engines** -- Ship mass exceeds what space engines can handle (interplanetary trips).
+- **No space engines** -- Interplanetary trip selected but no space engines detected.
+- **Low thrust-to-weight ratio** -- General warning when thrust margin is thin.
+- **Collision system without radar** -- Collision avoidance is enabled but no radar is linked.
+- **No space fuel tanks** -- Interplanetary trip detected but no space fuel tanks found on the construct.
+
+## Weight Warnings
+
+The HUD monitors ship mass against engine capacity in real time. As cargo is loaded or unloaded, the warnings update automatically.
+
+### Persistent HUD Warning
+
+When the ship is flying and mass exceeds safe limits for the current environment, the HUD displays a blinking warning:
+
+- **In atmosphere**: `** OVERWEIGHT **` -- atmo engines cannot safely support the ship.
+- **In space**: `** OVERWEIGHT FOR SPACE **` -- space engines cannot safely support the ship at current gravity.
+
+### Takeoff Warning
+
+When you retract landing gear (takeoff), the system checks if the ship is too heavy:
+
+- **Too heavy for atmo engines** -- warns before takeoff so you can reduce cargo.
+- **Exceeds safe hover mass** -- hovers may struggle to maintain altitude.
 
 ---
 

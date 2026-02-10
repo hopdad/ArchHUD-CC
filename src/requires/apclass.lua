@@ -614,9 +614,19 @@ function APClass(Nav, c, u, atlas, vBooster, hover, telemeter_1, antigrav, dbHud
         if (AutopilotTargetIndex > 0 or #apRoute>0) and not Autopilot and not VectorToTarget and not spaceLaunch and not IntoOrbit then
             -- Pre-flight validation checks
             local gravIntensity = c.getGravityIntensity()
-            if gravIntensity > 0 and 0.5 * Nav:maxForceForward() / gravIntensity < coreMass then
-                msg("WARNING: Thrust-to-weight ratio is low. Heavy loads may affect performance.")
-                msgTimer = 5
+            if gravIntensity > 0.1 then
+                local fwdDir = vec3(C.getOrientationForward())
+                local maxAtmo = C.getMaxThrustAlongAxis('thrust analog longitudinal ', {fwdDir:unpack()})[1]
+                local maxSpace = C.getMaxThrustAlongAxis('thrust analog longitudinal ', {fwdDir:unpack()})[3]
+                local safeAtmo = 0.5 * maxAtmo / gravIntensity
+                local safeSpace = 0.5 * maxSpace / gravIntensity
+                if inAtmo and coreMass > safeAtmo then
+                    msg("WARNING: Ship too heavy for atmo engines. Reduce cargo before flight.")
+                    msgTimer = 7
+                elseif coreMass > 0.5 * Nav:maxForceForward() / gravIntensity then
+                    msg("WARNING: Thrust-to-weight ratio is low. Heavy loads may affect performance.")
+                    msgTimer = 5
+                end
             end
             if CollisionSystem and not RADAR then
                 msg("WARNING: Collision system enabled but no radar detected")
@@ -624,7 +634,25 @@ function APClass(Nav, c, u, atlas, vBooster, hover, telemeter_1, antigrav, dbHud
             end
             AutopilotTargetIndex = (#apRoute>0 and not finalLand) and getIndex(apRoute[1]) or AutopilotTargetIndex
             ATLAS.UpdateAutopilotTarget()
-            if #apRoute>0 and not finalLand then 
+            if CustomTarget and CustomTarget.planetname ~= planet.name and CustomTarget.planetname ~= "Space" then
+                if #spaceTanks == 0 then
+                    msg("WARNING: No space fuel tanks detected for interplanetary trip")
+                    msgTimer = 5
+                end
+                -- Check if space engines can handle the mass
+                if gravIntensity > 0.1 then
+                    local fwdDir = vec3(C.getOrientationForward())
+                    local maxSpace = C.getMaxThrustAlongAxis('thrust analog longitudinal ', {fwdDir:unpack()})[3]
+                    if maxSpace > 0 and coreMass > 0.5 * maxSpace / gravIntensity then
+                        msg("WARNING: Ship may be too heavy for space engines. Check cargo load.")
+                        msgTimer = 7
+                    elseif maxSpace == 0 then
+                        msg("WARNING: No space engines detected for interplanetary trip")
+                        msgTimer = 7
+                    end
+                end
+            end
+            if #apRoute>0 and not finalLand then
                 msg("Route Autopilot in Progress")
                 if (CustomTarget.position - worldPos):project_on_plane(worldVertical):len() > 50000 and CustomTarget.planetname == planet.name then 
                     routeOrbit=true
@@ -743,7 +771,26 @@ function APClass(Nav, c, u, atlas, vBooster, hover, telemeter_1, antigrav, dbHud
             msg("Current Route Cleared")
         else
             apRoute[#apRoute+1]=CustomTarget.name
-            msg("Added "..CustomTarget.name.." to route. ")
+            local totalDist = 0
+            local prevPos = worldPos
+            for ri = 1, #apRoute do
+                for _, v in pairs(atlas[0]) do
+                    if v.name == apRoute[ri] and v.position then
+                        totalDist = totalDist + (v.position - prevPos):len()
+                        prevPos = v.position
+                        break
+                    end
+                end
+            end
+            local distStr
+            if totalDist > 200000 then
+                distStr = string.format("%.2f su", totalDist / 200000)
+            elseif totalDist > 1000 then
+                distStr = string.format("%.1f km", totalDist / 1000)
+            else
+                distStr = string.format("%.0f m", totalDist)
+            end
+            msg("Route: " .. #apRoute .. " legs, " .. distStr .. " total. Added " .. CustomTarget.name)
         end
         return apRoute
     end
@@ -946,8 +993,21 @@ function APClass(Nav, c, u, atlas, vBooster, hover, telemeter_1, antigrav, dbHud
             autoRoll = autoRollPreference
             AltitudeHold = false
         elseif not planet.hasAtmosphere then
-            msg("Re-Entry requirements not met: you must start out of atmosphere\n and within a planets gravity well over a planet with atmosphere")
-            msgTimer = 5
+            -- No atmosphere (moon/asteroid): stop and hand off to pilot
+            -- Automated landing is unsafe without atmosphere (no hovers, no drag)
+            Reentry = false
+            AltitudeHold = false
+            BrakeLanding = false
+            Autopilot = false
+            VectorToTarget = false
+            AutoTakeoff = false
+            ProgradeIsOn = false
+            BrakeIsOn = "Moon Approach"
+            StrongBrakes = true
+            AP.cmdThrottle(0)
+            msg("No atmosphere - braking to safe stop. Manual landing required.")
+            msgTimer = 10
+            play("apCom", "AP")
         elseif not reentryMode then-- Parachute ReEntry
             Reentry = true
             if navCom:getAxisCommandType(0) ~= controlMasterModeId.cruise then
@@ -1610,13 +1670,13 @@ function APClass(Nav, c, u, atlas, vBooster, hover, telemeter_1, antigrav, dbHud
                         BrakeIsOn = false
                         ProgradeIsOn = false
                         if spaceLand ~= 2 then reentryMode = reentryModePreference end
-                        if spaceLand == true then finalLand = true end
+                        if spaceLand == true then finalLand = planet.hasAtmosphere end
                         spaceLand = false
                         Autopilot = false
                         AP.BeginReentry()
                     end
-                elseif inAtmo and AtmoSpeedAssist then 
-                    AP.cmdThrottle(1)  
+                elseif inAtmo and AtmoSpeedAssist then
+                    AP.cmdThrottle(1)
                 end
             elseif velMag > minAutopilotSpeed then
                 AlignToWorldVector(constructVelocity, 0.01) 
@@ -1636,7 +1696,7 @@ function APClass(Nav, c, u, atlas, vBooster, hover, telemeter_1, antigrav, dbHud
                 if spaceLand ~= 2 then reentryMode = reentryModePreference end
                 AP.BeginReentry()
                 spaceLand = false
-                finalLand = true
+                finalLand = planet.hasAtmosphere
             else
                 spaceLand = false
                 if not aptoggle then aptoggle = true end
@@ -1831,7 +1891,7 @@ function APClass(Nav, c, u, atlas, vBooster, hover, telemeter_1, antigrav, dbHud
                         --BrakeIsOn = false -- Leave brakes on to be safe while we align prograde
                         AutopilotTargetCoords = CustomTarget.position -- For setting the waypoint
                         reentryMode = reentryModePreference
-                        finalLand = true
+                        finalLand = planet.hasAtmosphere
                         orbitalParams.VectorToTarget, orbitalParams.AutopilotAlign = false, false -- Let it disable orbit
                         AP.ToggleIntoOrbit()
                         AP.BeginReentry()
@@ -2665,16 +2725,14 @@ function APClass(Nav, c, u, atlas, vBooster, hover, telemeter_1, antigrav, dbHud
 
                         brakeDistance, brakeTime = Kinematic.computeDistanceAndTime(velMag, 0, coreMass, 0, 0, curBrake/2)
                         StrongBrakes = true
-                        if distanceToTarget <= brakeDistance + (velMag*deltaTick)/2 and constructVelocity:project_on_plane(worldVertical):normalize():dot(targetVec:project_on_plane(worldVertical):normalize()) > 0.99 then 
-                            if planet.hasAtmosphere then
-                                BrakeIsOn = false
-                                ProgradeIsOn = false
-                                reentryMode = reentryModePreference
-                                spaceLand = false
-                                finalLand = true
-                                Autopilot = false
-                                AP.BeginReentry()
-                            end
+                        if distanceToTarget <= brakeDistance + (velMag*deltaTick)/2 and constructVelocity:project_on_plane(worldVertical):normalize():dot(targetVec:project_on_plane(worldVertical):normalize()) > 0.99 then
+                            BrakeIsOn = false
+                            ProgradeIsOn = false
+                            reentryMode = reentryModePreference
+                            spaceLand = false
+                            finalLand = planet.hasAtmosphere
+                            Autopilot = false
+                            AP.BeginReentry()
                         end
                         LastDistanceToTarget = distanceToTarget
                     end

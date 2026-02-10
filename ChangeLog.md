@@ -1,5 +1,25 @@
 ## ChangeLog - Most recent changes at the top
 
+Version 2.200 - Major update: bug fixes, UX overhaul, telemetry, documentation
+- Fix 16 autopilot bugs: nil access, NaN from float drift, div-by-zero at escape velocity, state machine edge cases
+- Fix 18 HUD bugs: nil guards, widget logic, SVG rendering, performance issues
+- Fix 7 ECU safety bugs: BrakeLand=false drift, nil guards, per-frame landingGear, status label
+- Fix critical forcefield toggle bug (not inAtmo == 0), type shadow, duplicate calls in baseclass
+- Fix O(n^2) string concatenation in passenger/ship listing and /createPrivate
+- Performance: CSS caching, vec3 allocation reduction, math.* local caching in hot paths
+- Piloting UX: human-readable status codes (30+ labels), landing feedback HUD, AP transition warnings
+- Piloting UX: graduated 3-tier collision avoidance (caution/warning/emergency) with route preservation
+- Piloting UX: autoroll manual override (3s window on roll input), speed assist visibility
+- Piloting UX: alignment progress display, flight mode summary panel, pre-flight validation
+- Piloting UX: reentry mode selection (/reentry command toggles glide vs parachute preference)
+- Add /resumeroute command to restore route after collision avoidance
+- Add telemetry pub/sub system (T_ prefixed databank keys at 1s/2s/3s/10s intervals)
+- Add 5 programming board add-ons: Telemetry Dashboard, Radar Display, Damage Report, Flight Recorder, Route Planner
+- Add math test harness (48 tests) and CI workflow
+- Add full wiki documentation (16 pages in docs/)
+- Board scripts moved to standalone board/ folder (Lua files, no longer wrapped .conf)
+- Release workflow now builds and attaches ArchHUD.zip automatically
+
 Version 2.105 - MyDU update and bug fixes
 - Implement calculations for the anti-gravity fuel tank.
 - Resolve issues with Lua property saving and duplication.

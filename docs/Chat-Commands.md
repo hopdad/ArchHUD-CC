@@ -13,6 +13,8 @@ Full reference for Lua Chat channel commands. Open Lua Chat in-game to use these
 | `/setname <newname>` | Rename current selected IPH waypoint |
 | `/deletewp` | Delete current selected custom waypoint |
 | `/iphWP` | Display current IPH target's `::pos` coordinates |
+| `/nearest` | Select the closest saved waypoint and show distance |
+| `/return` | Set autopilot destination back to your last takeoff position |
 
 ## Route Commands
 

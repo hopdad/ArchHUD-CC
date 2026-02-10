@@ -1,6 +1,22 @@
 -- ArchHUD Radar Tactical Display - Programming Board Script
 -- Reads radar telemetry data from a shared databank and renders a tactical contact display on a linked screen.
--- Link this programming board to the SAME databank used by ArchHUD (dbHud slot) and a screen.
+--
+-- ═══════════════════════════════════════════════════════
+-- SETUP INSTRUCTIONS
+-- ═══════════════════════════════════════════════════════
+-- 1. Place a programming board, a screen, and link BOTH to the same databank
+--    used by your ArchHUD seat (the dbHud slot).
+-- 2. Right-click the programming board > Advanced > Edit Lua.
+-- 3. In the slot list (left side), rename the databank slot to "db"
+--    and the screen slot to "screen".
+-- 4. Select the filter: unit > onStart
+--    Paste this ENTIRE script into the code editor.
+-- 5. Add a NEW filter: unit > onTimer(timerId)
+--    Paste this single line:     onBoardTick(timerId)
+-- 6. Add a NEW filter: unit > onStop
+--    Paste this single line:     if screen then screen.setHTML("") end
+-- 7. Apply changes and activate the programming board.
+-- ═══════════════════════════════════════════════════════
 --
 -- Databank keys read:
 --   T_radar  = radar contact list and state (published by ArchHUD every 2s)
@@ -13,7 +29,7 @@
 -- Radar state codes:
 --   1=Operational, 0=Broken, -1=Jammed, -2=Obstructed, -3=In Use, -4=No Radar
 --
--- Slots:
+-- Slots (rename in the Lua editor slot list):
 --   db     = databank (same one linked to your seat/ECU as dbHud)
 --   screen = ScreenUnit
 
@@ -23,10 +39,15 @@ local unit = unit   ---@type ProgrammingBoard
 local system = system
 
 local jdecode = json.decode
+local jencode = json.encode
 local mfloor = math.floor
 local stringf = string.format
 local tblSort = table.sort
 local tblConcat = table.concat
+
+-- Alert state: track previous contacts to detect new arrivals
+local prevContactIds = {}   -- set of previously seen contact names+distance keys
+local prevThreatClose = 0   -- count of hostiles within 2km last tick
 
 -- ════════════════════════════════════════════
 -- Helpers
@@ -342,36 +363,83 @@ local function renderDashboard()
     return tblConcat(svg)
 end
 
--- ════════════════════════════════════════════
--- Script entry points (called by conf handlers)
--- ════════════════════════════════════════════
-script = {}
+--- Check radar data and write alert to databank if new threats detected
+local function checkAlerts()
+    local radar = safeDecode("T_radar")
+    if not radar or not radar.list then return end
 
-function script.onStart()
-    if not db then
-        system.print("ArchHUD Radar: No databank linked. Link a databank and restart.")
-        return
+    local isPvp = radar.pvp
+    local contacts = radar.list
+    local alertMsg = nil
+    local threatClose = 0
+
+    -- Build current contact set and count close threats
+    local currentIds = {}
+    for _, c in ipairs(contacts) do
+        local key = (c.n or "?") .. "_" .. (c.s or "?")
+        currentIds[key] = true
+
+        -- Count non-friendly dynamic contacts within 2km in PVP
+        if isPvp and not c.f and c.k == "Dynamic" and c.d < 2000 then
+            threatClose = threatClose + 1
+        end
     end
-    if not screen then
-        system.print("ArchHUD Radar: No screen linked. Link a screen and restart.")
-        return
+
+    -- Alert: new hostile within 2km
+    if threatClose > prevThreatClose and isPvp then
+        local newThreats = threatClose - prevThreatClose
+        alertMsg = stringf("THREAT: %d hostile(s) within 2 km!", newThreats)
     end
-    unit.setTimer("refresh", 2)
-    system.print("ArchHUD Radar Tactical Display started.")
-    -- Render once immediately
-    screen.setHTML(renderDashboard())
+
+    -- Alert: new dynamic contact appeared (not seen last tick)
+    if not alertMsg then
+        for _, c in ipairs(contacts) do
+            if c.k == "Dynamic" and not c.f then
+                local key = (c.n or "?") .. "_" .. (c.s or "?")
+                if not prevContactIds[key] then
+                    local zoneTxt = isPvp and " in PVP zone" or ""
+                    alertMsg = stringf("Radar: New contact '%s' at %s%s", c.n or "Unknown", fmtDist(c.d or 0), zoneTxt)
+                    break
+                end
+            end
+        end
+    end
+
+    prevContactIds = currentIds
+    prevThreatClose = threatClose
+
+    if alertMsg then
+        db.setStringValue("A_radar", jencode({
+            msg = alertMsg,
+            t = system.getArkTime()
+        }))
+    end
 end
 
-function script.onStop()
-    if screen then
-        screen.setHTML("")
-    end
-end
-
-function script.onTick(timerId)
+-- ════════════════════════════════════════════
+-- Timer callback (global so unit > onTimer can call it)
+-- In unit > onTimer, paste:  onBoardTick(timerId)
+-- ════════════════════════════════════════════
+function onBoardTick(timerId)
     if timerId == "refresh" then
         if screen and db then
+            checkAlerts()
             screen.setHTML(renderDashboard())
         end
     end
 end
+
+-- ════════════════════════════════════════════
+-- Auto-initialization (runs on unit > onStart)
+-- ════════════════════════════════════════════
+if not db then
+    system.print("ArchHUD Radar: No databank linked. Rename the databank slot to 'db' and restart.")
+    return
+end
+if not screen then
+    system.print("ArchHUD Radar: No screen linked. Rename the screen slot to 'screen' and restart.")
+    return
+end
+unit.setTimer("refresh", 2)
+system.print("ArchHUD Radar Tactical Display started.")
+screen.setHTML(renderDashboard())
