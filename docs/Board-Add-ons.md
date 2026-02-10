@@ -1,6 +1,6 @@
 # Board Add-ons
 
-Programming board add-on scripts that display data from the ArchHUD telemetry system on physical screens. These are standalone Lua files located in the `board/` folder of the repository.
+Programming board add-on scripts that display data from the ArchHUD telemetry system on physical screens. Each add-on has a `.json` file (paste-ready for DU) and a `.lua` source file, both located in the `board/` folder.
 
 Each add-on runs on its own programming board and screen, reading telemetry data from the same databank used by your ArchHUD seat.
 
@@ -17,67 +17,47 @@ Each add-on runs on its own programming board and screen, reading telemetry data
 
 ---
 
-## Installation (Step by Step)
+## Installation
 
-Every standalone add-on follows the same installation process. These steps use the Telemetry Dashboard as an example, but the process is identical for all standalone add-ons. The Combined Display has a slightly different setup -- see its section below.
+Each add-on has a `.json` file in the `board/` folder that auto-configures all slots, event handlers, and code in one paste.
 
-### 1. Place and Link Elements
+### Quick Install (Recommended)
 
 1. Place a **programming board** on your construct.
 2. Place a **screen** (ScreenUnit) near the programming board.
 3. Use the link tool to link the **databank** (the same one your ArchHUD seat uses) to the programming board.
 4. Use the link tool to link the **screen** to the programming board.
+5. Open the `.json` file for the add-on you want (e.g., `TelemetryBoard.json`).
+6. **Copy the entire contents** of the JSON file to your clipboard.
+7. In-game, right-click the programming board and select **Paste Lua configuration from clipboard**.
+8. Right-click the programming board and select **Activate** (or use a switch).
 
-You should now have two links going into the programming board: one to the databank and one to the screen.
+That's it. The JSON paste auto-configures slot names, event handlers, and all code. The screen should display the add-on interface. If you see "AWAITING DATA", make sure a pilot is seated in the ArchHUD seat so telemetry is being published.
 
-### 2. Open the Lua Editor
+| Add-on | JSON File |
+|--------|-----------|
+| Telemetry Dashboard | `TelemetryBoard.json` |
+| Radar Tactical Display | `RadarDisplay.json` |
+| Damage Display | `DamageDisplay.json` |
+| Flight Recorder | `FlightRecorder.json` |
+| Route Planner | `RoutePlanner.json` |
+| Combined Display | `CombinedDisplay.json` |
 
-1. Right-click the programming board.
-2. Select **Advanced > Edit Lua**.
+> **Combined Display note:** The Combined Display JSON includes a `screen2` slot. If you only use one screen, just leave the second slot unlinked -- it will be ignored. If you want two screens, link a second screen before pasting.
 
-### 3. Rename Slots
+### Manual Install (Alternative)
 
-In the Lua editor, you will see a **slot list** on the left side. The linked elements appear as slots with auto-generated names like `slot1`, `slot2`, etc.
+If you prefer to set up the board manually instead of using the JSON paste:
 
-1. Click on the slot that corresponds to your **databank** and rename it to exactly: **`db`**
-2. Click on the slot that corresponds to your **screen** and rename it to exactly: **`screen`**
+1. Place and link elements as above (databank + screen to the programming board).
+2. Right-click the programming board, select **Advanced > Edit Lua**.
+3. **Rename slots** in the left panel: rename the databank slot to **`db`** and the screen slot to **`screen`**.
+4. Select **unit > onStart** and paste the entire contents of the `.lua` file.
+5. Add a new filter: **unit > onTimer(timerId)** and paste: `onBoardTick(timerId)`
+6. Add a new filter: **unit > onStop** and paste: `if screen then screen.setHTML("") end`
+7. Click **Apply**, close the editor, and activate the board.
 
-> **Important:** The slot names must match exactly (`db` and `screen`). If the names are wrong, the script will print an error message in the Lua chat when activated.
-
-### 4. Paste the Script into onStart
-
-1. In the filter/event list, select: **unit > onStart**
-2. Open the `.lua` file for the add-on you want (e.g., `TelemetryBoard.lua`).
-3. Copy the **entire** contents of the file.
-4. Paste it into the code editor panel for `unit > onStart`.
-
-### 5. Add the Timer Handler
-
-1. Click **Add Filter** (or the + button) to create a new event handler.
-2. Select: **unit > onTimer(timerId)**
-3. Paste this single line into the code editor:
-
-```lua
-onBoardTick(timerId)
-```
-
-### 6. Add the Stop Handler
-
-1. Click **Add Filter** again to create another event handler.
-2. Select: **unit > onStop**
-3. Paste this single line into the code editor:
-
-```lua
-if screen then screen.setHTML("") end
-```
-
-### 7. Activate
-
-1. Click **Apply** to save your changes.
-2. Close the Lua editor.
-3. Right-click the programming board and select **Activate** (or use an activation switch).
-
-The screen should display the add-on interface. If you see "AWAITING DATA", make sure a pilot is seated in the ArchHUD seat so telemetry is being published.
+For the Combined Display, the stop handler is `onBoardStop()` and you also need two screen handlers -- see its section below for details.
 
 ### Troubleshooting
 
@@ -191,17 +171,19 @@ All five displays in a single script. Click the screen to navigate between pages
 - Each screen shows page indicator dots and arrows at the bottom
 - With 2 screens, each screen navigates independently
 
-**Setup differences from standalone boards:**
+**Installation:** Use `CombinedDisplay.json` with the Quick Install method above. If using two screens, link both screens to the programming board before pasting.
 
-The Combined Display requires extra event handlers for screen click navigation. Follow the same general installation steps, but with these additions:
+**Manual setup** (if not using JSON paste) requires extra event handlers for screen click navigation:
 
-1. Rename slots: `db`, `screen`, and optionally `screen2` (for a second screen)
-2. Add these event handlers:
-   - **unit > onStart** → paste the entire script
-   - **unit > onTimer(timerId)** → `onBoardTick(timerId)`
-   - **unit > onStop** → `onBoardStop()`
-   - **screen > onMouseDown(x,y)** → `onScreenNav(1,x)`
-   - **screen2 > onMouseDown(x,y)** → `onScreenNav(2,x)` *(only if using 2 screens)*
+| Event | Code |
+|-------|------|
+| unit > onStart | *paste entire CombinedDisplay.lua* |
+| unit > onTimer(timerId) | `onBoardTick(timerId)` |
+| unit > onStop | `onBoardStop()` |
+| screen > onMouseDown(x,y) | `onScreenNav(1,x)` |
+| screen2 > onMouseDown(x,y) | `onScreenNav(2,x)` *(only if using 2 screens)* |
+
+Rename slots to `db`, `screen`, and optionally `screen2`.
 
 **Databank keys read:** `T_flight`, `T_ap`, `T_ship`, `T_fuel`, `T_radar`, `T_damage`, `T_route`
 **Databank keys written:** `T_history` (flight recording buffer), `A_damage`, `A_radar`, `A_recorder` (alert channels)
