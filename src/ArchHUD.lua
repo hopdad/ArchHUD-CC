@@ -180,7 +180,13 @@ local requireTable = {"autoconf/custom/archhud/globals","autoconf/custom/archhud
 
 for k,v in ipairs(requireTable) do
     local ok, err = pcall(require, v)
-    if not ok then system.print("Failed to load " .. v .. ": " .. tostring(err)) end
+    if not ok then
+        if v:find("userclass") then
+            -- userclass is optional (user extension file)
+        else
+            system.print("Failed to load " .. v .. ": " .. tostring(err))
+        end
+    end
 end
 
 script = {}  -- wrappable container for all the code

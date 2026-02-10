@@ -49,7 +49,11 @@
     {
       "code": "onBoardTick(timerId)",
       "filter": {
-        "args": [],
+        "args": [
+          {
+            "value": "refresh"
+          }
+        ],
         "signature": "tick(timerId)",
         "slotKey": "-1"
       },
