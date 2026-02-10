@@ -19,7 +19,7 @@ Each add-on runs on its own programming board and screen, reading telemetry data
 
 ## Installation (Step by Step)
 
-Every add-on follows the same installation process. These steps use the Telemetry Dashboard as an example, but the process is identical for all five add-ons.
+Every standalone add-on follows the same installation process. These steps use the Telemetry Dashboard as an example, but the process is identical for all standalone add-ons. The Combined Display has a slightly different setup -- see its section below.
 
 ### 1. Place and Link Elements
 
@@ -171,6 +171,42 @@ Route visualization and management. Refreshes every 3 seconds.
 - Autopilot status indicator
 
 **Databank keys read:** `T_route`, `T_ap`, `T_flight`
+
+### Combined Display (`CombinedDisplay.lua`)
+
+All five displays in a single script. Click the screen to navigate between pages. Supports 1 or 2 screens, each independently navigable.
+
+**Pages:**
+
+1. **Telemetry** -- flight data, autopilot, fuel, ship status (same as TelemetryBoard)
+2. **Radar** -- contact list with threat indicators (same as RadarDisplay)
+3. **Damage** -- hull integrity and element health (same as DamageDisplay)
+4. **Flight Recorder** -- speed/altitude/vspeed charts with history (same as FlightRecorder)
+5. **Route Planner** -- route progress and waypoint list (same as RoutePlanner)
+
+**Navigation:**
+
+- Click the **right half** of the screen to go to the next page
+- Click the **left half** to go to the previous page
+- Each screen shows page indicator dots and arrows at the bottom
+- With 2 screens, each screen navigates independently
+
+**Setup differences from standalone boards:**
+
+The Combined Display requires extra event handlers for screen click navigation. Follow the same general installation steps, but with these additions:
+
+1. Rename slots: `db`, `screen`, and optionally `screen2` (for a second screen)
+2. Add these event handlers:
+   - **unit > onStart** → paste the entire script
+   - **unit > onTimer(timerId)** → `onBoardTick(timerId)`
+   - **unit > onStop** → `onBoardStop()`
+   - **screen > onMouseDown(x,y)** → `onScreenNav(1,x)`
+   - **screen2 > onMouseDown(x,y)** → `onScreenNav(2,x)` *(only if using 2 screens)*
+
+**Databank keys read:** `T_flight`, `T_ap`, `T_ship`, `T_fuel`, `T_radar`, `T_damage`, `T_route`
+**Databank keys written:** `T_history` (flight recording buffer), `A_damage`, `A_radar`, `A_recorder` (alert channels)
+
+> **Tip:** The Combined Display replaces all five standalone boards with a single programming board. You only need one board and one or two screens instead of five boards and five screens.
 
 ---
 
