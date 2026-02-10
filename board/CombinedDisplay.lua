@@ -710,9 +710,16 @@ local function pgRoute()
   if wpc>maxR2 then fc(L,cD);setNextTextAlign(L,AlignH_Center,AlignV_Top);addText(L,fS,fmt("... +%d more",wpc-maxR2),hw,rSY+maxR2*rowH3+4) end
 end
 
--- Page dispatch
+-- Page dispatch (pcall to surface errors on screen)
 local pages={pgTelemetry,pgRadar,pgDamage,pgRecorder,pgRoute}
-if pages[page] then pages[page]() end
+if pages[page] then
+  local ok,err=pcall(pages[page])
+  if not ok then
+    local eL=createLayer()
+    setNextFillColor(eL,1,0.2,0.2,1);setNextTextAlign(eL,AlignH_Center,AlignV_Middle)
+    addText(eL,fN,"ERROR: "..tostring(err),hw,ry/2)
+  end
+end
 
 -- Navigation bar
 local ny=ry-18
