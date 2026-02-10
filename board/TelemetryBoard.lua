@@ -27,6 +27,90 @@ local screen = screen ---@type ScreenUnit
 local unit = unit ---@type ProgrammingBoard
 local system = system
 
+-- json fallback for emulators (du-lua.dev) where the library slot
+-- doesn't inject the json global automatically.
+if not json then
+    json = {}
+    -- Minimal JSON decoder
+    function json.decode(s)
+        if not s or s == "" then return nil end
+        local i = 1
+        local V
+        local function w() while i <= #s and s:byte(i) <= 32 do i = i + 1 end end
+        local function S()
+            i = i + 1; local b = {}
+            while true do
+                local c = s:sub(i,i)
+                if c == '"' then break
+                elseif c == '\\' then i=i+1; c=s:sub(i,i); if c=='n' then b[#b+1]='\n' elseif c=='t' then b[#b+1]='\t' else b[#b+1]=c end
+                else b[#b+1] = c end
+                i = i + 1
+            end
+            i = i + 1; return table.concat(b)
+        end
+        V = function()
+            w(); local c = s:sub(i,i)
+            if c == '"' then return S()
+            elseif c == '{' then
+                i=i+1; w(); local t = {}
+                if s:sub(i,i) ~= '}' then
+                    local k = S(); w(); i=i+1; t[k] = V()
+                    while true do w(); if s:sub(i,i) ~= ',' then break end; i=i+1; k=S(); w(); i=i+1; t[k]=V() end
+                end; w(); i=i+1; return t
+            elseif c == '[' then
+                i=i+1; w(); local t = {}
+                if s:sub(i,i) ~= ']' then
+                    t[1]=V(); local n=1
+                    while true do w(); if s:sub(i,i) ~= ',' then break end; i=i+1; n=n+1; t[n]=V() end
+                end; w(); i=i+1; return t
+            elseif c == 't' then i=i+4; return true
+            elseif c == 'f' then i=i+5; return false
+            elseif c == 'n' then i=i+4; return nil
+            else local j2=i; if c=='-' then i=i+1 end; while i<=#s and s:sub(i,i):match('[%deE%.%+%-]') do i=i+1 end; return tonumber(s:sub(j2,i-1))
+            end
+        end
+        local ok, r = pcall(V); return ok and r or nil
+    end
+    -- Minimal JSON encoder
+    function json.encode(val)
+        local buf = {}
+        local function enc(v)
+            local tp = type(v)
+            if v == nil then buf[#buf+1] = "null"
+            elseif tp == "boolean" then buf[#buf+1] = v and "true" or "false"
+            elseif tp == "number" then
+                if v ~= v then buf[#buf+1] = "null"
+                elseif v == 1/0 then buf[#buf+1] = "1e999"
+                elseif v == -1/0 then buf[#buf+1] = "-1e999"
+                else buf[#buf+1] = string.format("%.14g", v) end
+            elseif tp == "string" then
+                buf[#buf+1] = '"'; buf[#buf+1] = v:gsub('[\\"\n\t\r]', {['\\']='\\\\',  ['"']='\\"', ['\n']='\\n', ['\t']='\\t', ['\r']='\\r'}); buf[#buf+1] = '"'
+            elseif tp == "table" then
+                -- Detect array vs object: sequential integer keys from 1..#v
+                local n = #v
+                local isArr = n > 0
+                if isArr then for k in pairs(v) do if type(k) ~= "number" or k < 1 or k > n or k ~= math.floor(k) then isArr = false; break end end end
+                if isArr then
+                    buf[#buf+1] = '['
+                    for i = 1, n do if i > 1 then buf[#buf+1] = ',' end; enc(v[i]) end
+                    buf[#buf+1] = ']'
+                else
+                    buf[#buf+1] = '{'
+                    local first = true
+                    for k2, v2 in pairs(v) do
+                        if type(k2) == "string" then
+                            if not first then buf[#buf+1] = ',' end; first = false
+                            enc(k2); buf[#buf+1] = ':'; enc(v2)
+                        end
+                    end
+                    buf[#buf+1] = '}'
+                end
+            end
+        end
+        enc(val)
+        return table.concat(buf)
+    end
+end
 local jdecode = json.decode
 local mfloor = math.floor
 local stringf = string.format
