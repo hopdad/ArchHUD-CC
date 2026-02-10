@@ -1,5 +1,10 @@
 ## ChangeLog - Most recent changes at the top
 
+Version 2.201 - Board add-on fixes
+- Rewrite CombinedDisplay to use setRenderScript API for proper screen rendering
+- Fix deprecated event signatures in board JSON configs
+- Make release workflow resilient to duplicate version tags
+
 Version 2.200 - Major update: bug fixes, UX overhaul, telemetry, documentation
 - Fix 16 autopilot bugs: nil access, NaN from float drift, div-by-zero at escape velocity, state machine edge cases
 - Fix 18 HUD bugs: nil guards, widget logic, SVG rendering, performance issues
