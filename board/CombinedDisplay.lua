@@ -143,62 +143,36 @@ end
 
 -- ═══════════════════════════════════════════
 -- Data Collection (sent to screen via setScriptInput)
--- setScriptInput has a 1024-char limit, so only send data for the active page.
--- The render script outputs its current page number via setOutput().
 -- ═══════════════════════════════════════════
-local function collectDataForPage(pg)
-    local data = {ts = system.getArkTime()}
-    if pg == 2 then
-        -- Radar page: contacts + pvp status
-        local radar = safeDecode("T_radar")
-        if radar and radar.list then
-            local lim = {}
-            for i = 1, mmin(#radar.list, 8) do lim[i] = radar.list[i] end
-            radar.list = lim
-        end
-        data.r = radar
-        local ship = safeDecode("T_ship")
-        if ship then data.s = {pvp = ship.pvp} end
-    elseif pg == 3 then
-        -- Damage page: element list
-        local damage = safeDecode("T_damage")
-        if damage and damage.list then
-            local lim = {}
-            for i = 1, mmin(#damage.list, 10) do lim[i] = damage.list[i] end
-            damage.list = lim
-        end
-        data.d = damage
-    elseif pg == 4 then
-        -- Recorder page: compact history arrays [t,s,a,v]
-        local flight = safeDecode("T_flight")
-        if flight then data.f = {time = flight.time} end
-        local hData = {}
-        local n = #history
-        if n > 0 then
-            local step = mmax(1, mfloor(n / 25))
-            for i = 1, n, step do
-                local p = history[i]
-                hData[#hData + 1] = {mfloor(p.t), mfloor((p.s or 0) + 0.5), mfloor((p.a or 0) + 0.5), mfloor((p.v or 0) + 0.5)}
-            end
-            local last = history[n]
-            if #hData == 0 or hData[#hData][1] ~= mfloor(last.t) then
-                hData[#hData + 1] = {mfloor(last.t), mfloor((last.s or 0) + 0.5), mfloor((last.a or 0) + 0.5), mfloor((last.v or 0) + 0.5)}
-            end
-        end
-        data.h = hData
-    elseif pg == 5 then
-        -- Route page: waypoints + AP status
-        data.rt = safeDecode("T_route")
-        local ap = safeDecode("T_ap")
-        if ap then data.a = {on = ap.on} end
-    else
-        -- Page 1 (Telemetry) or default
-        data.f = safeDecode("T_flight")
-        data.a = safeDecode("T_ap")
-        data.s = safeDecode("T_ship")
-        data.u = safeDecode("T_fuel")
+local function collectData()
+    local flight = safeDecode("T_flight")
+    local ap = safeDecode("T_ap")
+    local ship = safeDecode("T_ship")
+    local fuel = safeDecode("T_fuel")
+    local radar = safeDecode("T_radar")
+    local damage = safeDecode("T_damage")
+    local route = safeDecode("T_route")
+    -- Limit radar contacts for data size
+    if radar and radar.list then
+        local lim = {}
+        for i=1,mmin(#radar.list,18) do lim[i]=radar.list[i] end
+        radar.list = lim
     end
-    return jencode(data)
+    -- Limit damage elements
+    if damage and damage.list then
+        local lim = {}
+        for i=1,mmin(#damage.list,20) do lim[i]=damage.list[i] end
+        damage.list = lim
+    end
+    -- Downsample recorder history for screen
+    local hData = {}
+    local n = #history
+    if n>0 then
+        local step = mmax(1,mfloor(n/60))
+        for i=1,n,step do hData[#hData+1]={t=history[i].t,s=history[i].s,a=history[i].a,v=history[i].v} end
+        if hData[#hData].t~=history[n].t then hData[#hData+1]={t=history[n].t,s=history[n].s,a=history[n].a,v=history[n].v} end
+    end
+    return jencode({f=flight,a=ap,s=ship,u=fuel,r=radar,d=damage,rt=route,h=hData,ts=system.getArkTime()})
 end
 
 -- ═══════════════════════════════════════════
@@ -530,10 +504,10 @@ local function drawChart(pY,pH,vals,n,color,lab,fmtL,fmtC,showZero)
     sc(L,{1,1,1,0.3});setNextStrokeWidth(L,1);addLine(L,pX,zy,pX2,zy)
   end
   -- Data line
-  local tS,tE=h[1][1],h[n][1];local tR=tE-tS;if tR<1 then tR=1 end
+  local times=h;local tS,tE=times[1].t,times[n].t;local tR=tE-tS;if tR<1 then tR=1 end
   for i=2,n do
-    local x1f=(h[i-1][1]-tS)/tR;local y1f=(vals[i-1]-vn)/rng
-    local x2f=(h[i][1]-tS)/tR;local y2f=(vals[i]-vn)/rng
+    local x1f=(times[i-1].t-tS)/tR;local y1f=(vals[i-1]-vn)/rng
+    local x2f=(times[i].t-tS)/tR;local y2f=(vals[i]-vn)/rng
     sc(L,color);setNextStrokeWidth(L,2)
     addLine(L,pX+x1f*pW,plY+plH-y1f*plH,pX+x2f*pW,plY+plH-y2f*plH)
   end
@@ -546,13 +520,13 @@ local function drawChart(pY,pH,vals,n,color,lab,fmtL,fmtC,showZero)
 end
 local function pgRecorder()
   local n=#h;titleBar("ARCHHUD FLIGHT RECORDER")
-  if n>0 and ts-(h[n][1] or 0)<30 then
+  if n>0 and ts-(h[n].t or 0)<30 then
     fc(ov,cR);addCircle(ov,rx-100,12,4)
     fc(ov,cR);addText(ov,fS,"REC",rx-92,7)
     fc(ov,cD);addText(ov,fS,fmt("%d pts",n),rx-60,7)
   end
   local speeds,alts,vspeeds={},{},{}
-  for i=1,n do speeds[i]=h[i][2]*3.6;alts[i]=h[i][3];vspeeds[i]=h[i][4] end
+  for i=1,n do speeds[i]=h[i].s*3.6;alts[i]=h[i].a;vspeeds[i]=h[i].v end
   local cH=floor((ry-80)/3)
   drawChart(34,cH,speeds,n,cA,"SPEED (km/h)",
     function(v) return v>10000 and fmt("%.1fk",v/1000) or fmt("%.0f",v) end,
@@ -564,7 +538,7 @@ local function pgRecorder()
     function(v) return fmt("%s%.1f",v>=0 and "+" or "",v) end,true)
   -- Duration
   if n>0 then
-    local dur=ts-h[1][1]
+    local dur=ts-h[1].t
     local dt=dur>3600 and fmt("%.1fh recorded",dur/3600) or(dur>60 and fmt("%dm recorded",floor(dur/60)) or fmt("%ds recorded",floor(dur)))
     fc(L,cD);setNextTextAlign(L,AlignH_Right,AlignV_Top);addText(L,fS,dt,rx-8,ry-34)
   end
@@ -642,7 +616,6 @@ for i=1,PAGES do
   addCircle(ov,dotX+i*14,ny+10,2)
 end
 
-setOutput(tostring(page))
 requestAnimationFrame(15)
 ]=]
 
@@ -661,15 +634,10 @@ function onBoardTick(timerId)
         checkDamageAlerts()
         checkRadarAlerts()
         checkRecorderAlerts()
-        -- Push page-specific data to each screen (1024 char input limit)
-        if screen and db then
-            local pg = tonumber(screen.getScriptOutput()) or 1
-            screen.setScriptInput(collectDataForPage(pg))
-        end
-        if screen2 and db then
-            local pg = tonumber(screen2.getScriptOutput()) or 1
-            screen2.setScriptInput(collectDataForPage(pg))
-        end
+        -- Push data to screens
+        local data = collectData()
+        if screen and db then screen.setScriptInput(data) end
+        if screen2 and db then screen2.setScriptInput(data) end
     end
 end
 
@@ -698,8 +666,8 @@ screen.setRenderScript(RENDER_SCRIPT)
 if screen2 then screen2.setRenderScript(RENDER_SCRIPT) end
 -- Start data timer
 unit.setTimer("refresh", TICK_INTERVAL)
--- Push initial data (default to page 1)
-local initData = collectDataForPage(1)
+-- Push initial data
+local initData = collectData()
 screen.setScriptInput(initData)
 if screen2 then screen2.setScriptInput(initData) end
 local mode = screen2 and "2 screens" or "1 screen"
