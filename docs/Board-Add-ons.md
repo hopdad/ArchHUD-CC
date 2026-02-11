@@ -1,24 +1,25 @@
 # Board Add-ons
 
-The **Combined Display** is the recommended board add-on for ArchHUD. It runs all five display pages (Telemetry, Radar, Damage, Flight Recorder, Route Planner) on a single programming board using DU's native `setRenderScript` API. Click the screen to navigate between pages.
+Programming board add-on scripts that display data from the ArchHUD telemetry system on physical screens. Each add-on has a `.json` file (paste-ready for DU) and a `.lua` source file, both located in the `board/` folder.
 
-The `board/` folder also contains standalone single-page scripts (`TelemetryBoard.lua`, `RadarDisplay.lua`, etc.) which use the older `setHTML` API. These are **deprecated** and may be removed in a future release. Use the Combined Display instead.
+Each add-on runs on its own programming board and screen, reading telemetry data from the same databank used by your ArchHUD seat.
 
 ---
 
 ## Requirements
 
-- A **programming board**
+- A **programming board** (one per add-on)
 - The **same databank** linked to your ArchHUD seat (the `dbHud` slot)
 - A **screen** (ScreenUnit) -- any size works; larger screens show more detail
-- Optionally a **second screen** for dual-screen mode
-- Link the **databank** and **screen(s)** to the programming board
+- Link **both** the databank and screen to the programming board
 
-> **Note:** The pilot must be seated for telemetry data to be published.
+> **Note:** You can run multiple add-ons simultaneously on separate programming boards, all sharing the same databank. The pilot must be seated for telemetry data to be published.
 
 ---
 
 ## Installation
+
+Each add-on has a `.json` file in the `board/` folder that auto-configures all slots, event handlers, and code in one paste.
 
 ### Quick Install (Recommended)
 
@@ -26,14 +27,23 @@ The `board/` folder also contains standalone single-page scripts (`TelemetryBoar
 2. Place a **screen** (ScreenUnit) near the programming board.
 3. Use the link tool to link the **databank** (the same one your ArchHUD seat uses) to the programming board.
 4. Use the link tool to link the **screen** to the programming board.
-5. Open `board/CombinedDisplay.json`.
+5. Open the `.json` file for the add-on you want (e.g., `TelemetryBoard.json`).
 6. **Copy the entire contents** of the JSON file to your clipboard.
 7. In-game, right-click the programming board and select **Paste Lua configuration from clipboard**.
 8. Right-click the programming board and select **Activate** (or use a switch).
 
-That's it. The JSON paste auto-configures slot names, event handlers, and all code. The screen should display the Telemetry page. If you see "AWAITING DATA", make sure a pilot is seated in the ArchHUD seat so telemetry is being published.
+That's it. The JSON paste auto-configures slot names, event handlers, and all code. The screen should display the add-on interface. If you see "AWAITING DATA", make sure a pilot is seated in the ArchHUD seat so telemetry is being published.
 
-> **Dual screen:** The JSON includes a `screen2` slot. If you only use one screen, leave the second slot unlinked -- it will be ignored. If you want two screens, link a second screen before pasting. Each screen navigates independently.
+| Add-on | JSON File |
+|--------|-----------|
+| Telemetry Dashboard | `TelemetryBoard.json` |
+| Radar Tactical Display | `RadarDisplay.json` |
+| Damage Display | `DamageDisplay.json` |
+| Flight Recorder | `FlightRecorder.json` |
+| Route Planner | `RoutePlanner.json` |
+| Combined Display | `CombinedDisplay.json` |
+
+> **Combined Display note:** The Combined Display JSON includes a `screen2` slot. If you only use one screen, just leave the second slot unlinked -- it will be ignored. If you want two screens, link a second screen before pasting.
 
 ### Manual Install (Alternative)
 
@@ -41,11 +51,13 @@ If you prefer to set up the board manually instead of using the JSON paste:
 
 1. Place and link elements as above (databank + screen to the programming board).
 2. Right-click the programming board, select **Advanced > Edit Lua**.
-3. **Rename slots** in the left panel: rename the databank slot to **`db`** and the screen slot to **`screen`** (and optionally a second screen to **`screen2`**).
-4. Select **unit > onStart** and paste the entire contents of `CombinedDisplay.lua`.
-5. Add a new filter: **unit > onTimer(timerId)** with value `refresh` and paste: `onBoardTick(timerId)`
-6. Add a new filter: **unit > onStop** and paste: `onBoardStop()`
+3. **Rename slots** in the left panel: rename the databank slot to **`db`** and the screen slot to **`screen`**.
+4. Select **unit > onStart** and paste the entire contents of the `.lua` file.
+5. Add a new filter: **unit > onTimer(timerId)** and paste: `onBoardTick(timerId)`
+6. Add a new filter: **unit > onStop** and paste: `if screen then screen.setHTML("") end`
 7. Click **Apply**, close the editor, and activate the board.
+
+For the Combined Display, the stop handler is `onBoardStop()` and you also need two screen handlers -- see its section below for details.
 
 ### Troubleshooting
 
@@ -60,17 +72,97 @@ If you prefer to set up the board manually instead of using the JSON paste:
 
 ---
 
-## Combined Display (`CombinedDisplay.lua`)
+## Available Add-ons
 
-All five display pages in a single script using DU's native `setRenderScript` API. Click the screen to navigate between pages. Supports 1 or 2 screens, each independently navigable.
+### Telemetry Dashboard (`TelemetryBoard.lua`)
+
+Comprehensive flight data display. Refreshes every 1 second.
+
+**Panels:**
+
+- **Flight Data** -- ground speed (km/h and m/s), altitude, vertical speed, atmosphere density, throttle percentage, and status indicators (in-atmo, gear, brake, near-planet).
+- **Autopilot** -- engagement status, current phase, target name, distance to target, brake distance, and mode indicators (altitude hold, turn & burn, orbit, reentry).
+- **Fuel** -- atmo, space, and rocket fuel levels with color-coded percentage bars. Turns orange below 25% and red below 10%.
+- **Ship Status** -- shield percentage, total mass, odometer (total distance traveled), and flight time.
+
+**Databank keys read:** `T_flight`, `T_ap`, `T_ship`, `T_fuel`
+
+### Radar Tactical Display (`RadarDisplay.lua`)
+
+Real-time radar contact visualization. Refreshes every 2 seconds.
+
+**Features:**
+
+- Color-coded contacts: hostile/unknown in PVP = red/amber, friendly = green, static = gray
+- Contact table with name, distance, size category (XS/S/M/L), type (Dynamic/Static), and friendly status
+- Distance color-coding in PVP zones: red within 2 km, orange within 10 km
+- Radar status indicator (Operational, Broken, Jammed, Obstructed, No Radar)
+- Total contact count and PVP threat count
+- Sorted by distance (closest first), max 22 contacts displayed
+- **Alerts:** Writes threat warnings to the HUD via the alert channel (see below)
+
+**Databank keys read:** `T_radar`, `T_flight`, `T_ship`
+
+### Damage Display (`DamageDisplay.lua`)
+
+Ship health monitoring. Refreshes every 5 seconds with auto-paginating element list.
+
+**Features:**
+
+- Large ship integrity percentage with color gradient (green > yellow > red)
+- Full-width integrity bar
+- Summary: damaged count, disabled count, total element count
+- Per-element detail table: name, type, HP bar, and HP values
+- Destroyed elements highlighted in red with "DESTROYED" label
+- Auto-paginates through damaged elements every 5 seconds
+- **Alerts:** Writes hull integrity warnings to the HUD via the alert channel (see below)
+
+**Databank keys read:** `T_damage`, `T_flight`
+
+### Flight Recorder (`FlightRecorder.lua`)
+
+Flight data logging with scrolling line charts. Records every 10 seconds, keeps 30 minutes of history.
+
+**Features:**
+
+- Three stacked line charts: Speed (km/h), Altitude, and Vertical Speed
+- Auto-scaling Y-axis with grid lines and min/max readouts
+- Shared X-axis with time labels (now, 30s, 1m, 5m, etc.)
+- Recording status indicator (REC dot when actively recording)
+- Data persistence: history is saved to the databank and survives board restarts
+- Recording duration display
+- **Alerts:** Writes anomaly warnings (rapid altitude loss, sudden deceleration) to the HUD
+
+**Databank keys read:** `T_flight`
+**Databank keys written:** `T_history` (flight recording buffer)
+
+### Route Planner (`RoutePlanner.lua`)
+
+Route visualization and management. Refreshes every 3 seconds.
+
+**Features:**
+
+- Route progress bar with waypoint markers and completion percentage
+- Summary stats: total distance, remaining distance, ETA, current speed, waypoint count
+- Waypoint list with visual connector lines between legs
+- Current target highlighted with double-ring indicator
+- Per-waypoint data: name, planet, leg distance, distance from ship, ETA
+- Saved route display when no active route is loaded
+- Autopilot status indicator
+
+**Databank keys read:** `T_route`, `T_ap`, `T_flight`
+
+### Combined Display (`CombinedDisplay.lua`)
+
+All five displays in a single script. Click the screen to navigate between pages. Supports 1 or 2 screens, each independently navigable.
 
 **Pages:**
 
-1. **Telemetry** -- ground speed, altitude, vertical speed, atmosphere, throttle, status indicators, autopilot status/phase/target, fuel levels, shield, mass, odometer
-2. **Radar** -- radar status, contact count, threat count, color-coded contact table sorted by distance with size/type/friendly status
-3. **Damage** -- ship integrity percentage with color gradient bar, damaged/disabled/total counts, per-element HP table with auto-pagination
-4. **Flight Recorder** -- three stacked line charts (speed, altitude, vertical speed) with auto-scaling Y-axis, recording indicator, 30-minute history saved to databank
-5. **Route Planner** -- route progress bar, total/remaining distance, ETA, waypoint list with leg distances and per-waypoint ETA
+1. **Telemetry** -- flight data, autopilot, fuel, ship status (same as TelemetryBoard)
+2. **Radar** -- contact list with threat indicators (same as RadarDisplay)
+3. **Damage** -- hull integrity and element health (same as DamageDisplay)
+4. **Flight Recorder** -- speed/altitude/vspeed charts with history (same as FlightRecorder)
+5. **Route Planner** -- route progress and waypoint list (same as RoutePlanner)
 
 **Navigation:**
 
@@ -79,24 +171,24 @@ All five display pages in a single script using DU's native `setRenderScript` AP
 - Each screen shows page indicator dots and arrows at the bottom
 - With 2 screens, each screen navigates independently
 
-**Alerts:** The display monitors for dangerous conditions and writes alerts to the shared databank for the HUD to display (see Alert Channel section below).
+**Installation:** Use `CombinedDisplay.json` with the Quick Install method above. If using two screens, link both screens to the programming board before pasting.
+
+**Manual setup** (if not using JSON paste) requires extra event handlers for screen click navigation:
+
+| Event | Code |
+|-------|------|
+| unit > onStart | *paste entire CombinedDisplay.lua* |
+| unit > onTimer(timerId) | `onBoardTick(timerId)` |
+| unit > onStop | `onBoardStop()` |
+| screen > onMouseDown(x,y) | `onScreenNav(1,x)` |
+| screen2 > onMouseDown(x,y) | `onScreenNav(2,x)` *(only if using 2 screens)* |
+
+Rename slots to `db`, `screen`, and optionally `screen2`.
 
 **Databank keys read:** `T_flight`, `T_ap`, `T_ship`, `T_fuel`, `T_radar`, `T_damage`, `T_route`
 **Databank keys written:** `T_history` (flight recording buffer), `A_damage`, `A_radar`, `A_recorder` (alert channels)
 
----
-
-## Deprecated Standalone Boards
-
-The following standalone scripts are **deprecated** and use the older `setHTML` API which produces console warnings in current DU. They remain in the `board/` folder for reference but are no longer recommended. Use the Combined Display instead.
-
-| Script | JSON | Description |
-|--------|------|-------------|
-| `TelemetryBoard.lua` | `TelemetryBoard.json` | Flight data, autopilot, fuel, ship status |
-| `RadarDisplay.lua` | `RadarDisplay.json` | Radar contact table with threat indicators |
-| `DamageDisplay.lua` | `DamageDisplay.json` | Hull integrity and element health |
-| `FlightRecorder.lua` | `FlightRecorder.json` | Speed/altitude/vspeed charts with history |
-| `RoutePlanner.lua` | `RoutePlanner.json` | Route progress and waypoint list |
+> **Tip:** The Combined Display replaces all five standalone boards with a single programming board. You only need one board and one or two screens instead of five boards and five screens.
 
 ---
 
