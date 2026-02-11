@@ -1,16 +1,21 @@
 -- ArchHUD Combined Display - Programming Board Script
 -- All-in-one display: Telemetry, Radar, Damage, Flight Recorder, Route Planner.
--- Uses setRenderScript for native DU screen rendering.
 -- Click left/right side of screen to navigate between pages.
 -- Supports 1 or 2 screens, each independently navigable.
 --
 -- ═══════════════════════════════════════════════════════
--- SETUP: Use CombinedDisplay.json (Paste Lua configuration)
--- or manually:
---   Slots: db=databank, screen=ScreenUnit, screen2=ScreenUnit (optional)
---   unit > onStart       → paste this entire script
---   unit > onTimer(timerId) → onBoardTick(timerId)
---   unit > onStop        → onBoardStop()
+-- SETUP INSTRUCTIONS
+-- ═══════════════════════════════════════════════════════
+-- 1. Place a programming board, 1-2 screens, and link ALL to the same
+--    databank used by your ArchHUD seat (the dbHud slot).
+-- 2. Right-click the programming board > Advanced > Edit Lua.
+-- 3. Rename slots: databank="db", first screen="screen", second screen="screen2"
+-- 4. Filter: unit > onStart           → paste this ENTIRE script
+-- 5. Filter: unit > onTimer(timerId)  → onBoardTick(timerId)
+-- 6. Filter: unit > onStop            → onBoardStop()
+-- 7. Filter: screen > onMouseDown(x,y) → onScreenNav(1,x)
+-- 8. (If 2 screens) Filter: screen2 > onMouseDown(x,y) → onScreenNav(2,x)
+-- 9. Apply and activate.
 -- ═══════════════════════════════════════════════════════
 
 local db = db           ---@type databank
@@ -23,115 +28,31 @@ local system = system
 -- Configuration
 -- ═══════════════════════════════════════════
 local TICK_INTERVAL = 2
-local RECORDER_TICKS = 5
+local RECORDER_TICKS = 5        -- Record snapshot every 5 ticks (10s)
 
 -- ═══════════════════════════════════════════
--- Cached stdlib
+-- Standard Library Cache
 -- ═══════════════════════════════════════════
--- json fallback for emulators (du-lua.dev) where the library slot
--- doesn't inject the json global automatically.
-if not json then
-    json = {}
-    -- Minimal JSON decoder
-    function json.decode(s)
-        if not s or s == "" then return nil end
-        local i = 1
-        local V
-        local function w() while i <= #s and s:byte(i) <= 32 do i = i + 1 end end
-        local function S()
-            i = i + 1; local b = {}
-            while true do
-                local c = s:sub(i,i)
-                if c == '"' then break
-                elseif c == '\\' then i=i+1; c=s:sub(i,i); if c=='n' then b[#b+1]='\n' elseif c=='t' then b[#b+1]='\t' else b[#b+1]=c end
-                else b[#b+1] = c end
-                i = i + 1
-            end
-            i = i + 1; return table.concat(b)
-        end
-        V = function()
-            w(); local c = s:sub(i,i)
-            if c == '"' then return S()
-            elseif c == '{' then
-                i=i+1; w(); local t = {}
-                if s:sub(i,i) ~= '}' then
-                    local k = S(); w(); i=i+1; t[k] = V()
-                    while true do w(); if s:sub(i,i) ~= ',' then break end; i=i+1; k=S(); w(); i=i+1; t[k]=V() end
-                end; w(); i=i+1; return t
-            elseif c == '[' then
-                i=i+1; w(); local t = {}
-                if s:sub(i,i) ~= ']' then
-                    t[1]=V(); local n=1
-                    while true do w(); if s:sub(i,i) ~= ',' then break end; i=i+1; n=n+1; t[n]=V() end
-                end; w(); i=i+1; return t
-            elseif c == 't' then i=i+4; return true
-            elseif c == 'f' then i=i+5; return false
-            elseif c == 'n' then i=i+4; return nil
-            else local j2=i; if c=='-' then i=i+1 end; while i<=#s and s:sub(i,i):match('[%deE%.%+%-]') do i=i+1 end; return tonumber(s:sub(j2,i-1))
-            end
-        end
-        local ok, r = pcall(V); return ok and r or nil
-    end
-    -- Minimal JSON encoder
-    function json.encode(val)
-        local buf = {}
-        local function enc(v)
-            local tp = type(v)
-            if v == nil then buf[#buf+1] = "null"
-            elseif tp == "boolean" then buf[#buf+1] = v and "true" or "false"
-            elseif tp == "number" then
-                if v ~= v then buf[#buf+1] = "null"
-                elseif v == 1/0 then buf[#buf+1] = "1e999"
-                elseif v == -1/0 then buf[#buf+1] = "-1e999"
-                else buf[#buf+1] = string.format("%.14g", v) end
-            elseif tp == "string" then
-                buf[#buf+1] = '"'; buf[#buf+1] = v:gsub('[\\"\n\t\r]', {['\\']='\\\\',['"']='\\"',['\n']='\\n',['\t']='\\t',['\r']='\\r'}); buf[#buf+1] = '"'
-            elseif tp == "table" then
-                -- Detect array vs object: sequential integer keys from 1..#v
-                local n = #v
-                local isArr = n > 0
-                if isArr then for k in pairs(v) do if type(k) ~= "number" or k < 1 or k > n or k ~= math.floor(k) then isArr = false; break end end end
-                if isArr then
-                    buf[#buf+1] = '['
-                    for i = 1, n do if i > 1 then buf[#buf+1] = ',' end; enc(v[i]) end
-                    buf[#buf+1] = ']'
-                else
-                    buf[#buf+1] = '{'
-                    local first = true
-                    for k2, v2 in pairs(v) do
-                        if type(k2) == "string" then
-                            if not first then buf[#buf+1] = ',' end; first = false
-                            enc(k2); buf[#buf+1] = ':'; enc(v2)
-                        end
-                    end
-                    buf[#buf+1] = '}'
-                end
-            end
-        end
-        enc(val)
-        return table.concat(buf)
-    end
-end
 local jdecode = json.decode
 local jencode = json.encode
 local mfloor = math.floor
+local mceil = math.ceil
 local mmin = math.min
 local mmax = math.max
 local stringf = string.format
+local tblSort = table.sort
+local tblConcat = table.concat
 
 -- ═══════════════════════════════════════════
 -- State
 -- ═══════════════════════════════════════════
+local pageCount = 5
+local screen1Page = 1
+local screen2Page = 2
 local recorderTicks = 0
-local MAX_HISTORY = 180
-local history = {}
-local prevIntegrity = 100
-local prevDisabled = 0
-local prevContactIds = {}
-local prevThreatClose = 0
 
 -- ═══════════════════════════════════════════
--- Utilities
+-- Shared Utilities
 -- ═══════════════════════════════════════════
 local function safeDecode(key)
     if not db.hasKey(key) then return nil end
@@ -140,6 +61,33 @@ local function safeDecode(key)
     return nil
 end
 
+local function esc(s)
+    if not s then return "?" end
+    return s:gsub("&","&amp;"):gsub("<","&lt;"):gsub(">","&gt;"):gsub('"',"&quot;")
+end
+
+local function rgb(r,g,b) return stringf("rgb(%d,%d,%d)",r,g,b) end
+local function rgba(r,g,b,a) return stringf("rgba(%d,%d,%d,%.2f)",r,g,b,a) end
+
+-- ═══════════════════════════════════════════
+-- Theme
+-- ═══════════════════════════════════════════
+local accentColor = rgb(130,224,255)
+local dimColor    = rgb(90,155,180)
+local warnColor   = rgb(255,165,0)
+local dangerColor = rgb(255,60,60)
+local safeColor   = rgb(60,255,120)
+local pvpColor    = rgb(255,60,60)
+local bgColor     = rgb(12,16,22)
+local panelColor  = rgba(20,30,40,0.85)
+local borderColor = rgba(130,224,255,0.3)
+local gridColor   = rgba(130,224,255,0.12)
+local staticColor = rgb(100,110,125)
+local amberColor  = rgb(255,190,50)
+
+-- ═══════════════════════════════════════════
+-- Shared Formatting
+-- ═══════════════════════════════════════════
 local function fmtDist(m)
     if not m or m == 0 then return "---" end
     if m > 200000 then return stringf("%.2f su",m/200000)
@@ -147,10 +95,411 @@ local function fmtDist(m)
     elseif m > 1000 then return stringf("%.2f km",m/1000)
     else return stringf("%.0f m",m) end
 end
+local function fmtTime(s)
+    if not s or s <= 0 then return "---" end
+    local d=mfloor(s/86400) local h=mfloor((s%86400)/3600) local m=mfloor((s%3600)/60) local sec=mfloor(s%60)
+    if d>365 then return ">1y" elseif d>0 then return stringf("%dd %dh",d,h)
+    elseif h>0 then return stringf("%dh %dm",h,m) elseif m>0 then return stringf("%dm %ds",m,sec)
+    else return stringf("%ds",sec) end
+end
+local function fmtSpeed(mps) return stringf("%.0f km/h",(mps or 0)*3.6) end
+local function fmtSpeedKmh(mps) return stringf("%.0f km/h",(mps or 0)*3.6) end
+local function fmtSpeedMs(mps)
+    if (mps or 0)>1000 then return stringf("%.1f km/s",mps/1000) else return stringf("%.0f m/s",mps or 0) end
+end
+local function fmtAlt(m)
+    if (m or 0)>100000 then return stringf("%.2f su",m/200000) elseif m>1000 then return stringf("%.1f km",m/1000)
+    else return stringf("%.0f m",m or 0) end
+end
 
 -- ═══════════════════════════════════════════
--- Flight Recorder
+-- Shared SVG Builders
 -- ═══════════════════════════════════════════
+local SW, SH = 1920, 1080
+local pageNames = {"TELEMETRY","RADAR","DAMAGE","FLIGHT RECORDER","ROUTE PLANNER"}
+
+local function svgOpen(svg)
+    svg[#svg+1] = stringf('<svg viewBox="0 0 %d %d" xmlns="http://www.w3.org/2000/svg">',SW,SH)
+    svg[#svg+1] = stringf('<rect width="%d" height="%d" fill="%s"/>',SW,SH,bgColor)
+end
+
+local function svgTitle(svg, title, rightText, rightClr)
+    svg[#svg+1] = stringf('<rect x="0" y="0" width="%d" height="50" fill="%s"/>',SW,rgba(20,30,40,0.95))
+    svg[#svg+1] = stringf('<text x="20" y="34" fill="%s" font-size="22" font-family="monospace" font-weight="bold">%s</text>',accentColor,title)
+    if rightText then
+        svg[#svg+1] = stringf('<text x="%d" y="34" fill="%s" font-size="18" font-family="monospace" text-anchor="end">%s</text>',SW-20,rightClr or dimColor,rightText)
+    end
+end
+
+local function svgFresh(svg, flight, cx, cy)
+    if flight and flight.time then
+        local age = system.getArkTime() - flight.time
+        local fc = age<5 and safeColor or (age<15 and warnColor or dangerColor)
+        local ft = age<5 and "LIVE" or stringf("%.0fs AGO",age)
+        svg[#svg+1] = stringf('<circle cx="%d" cy="%d" r="5" fill="%s"/>',cx,cy,fc)
+        svg[#svg+1] = stringf('<text x="%d" y="%d" fill="%s" font-size="13" font-family="monospace">DATA: %s</text>',cx+12,cy+4,fc,ft)
+    end
+end
+
+local function svgPageNav(svg, pageIdx)
+    local ny = SH - 14
+    -- Left arrow
+    svg[#svg+1] = stringf('<text x="30" y="%d" fill="%s" font-size="18" font-family="monospace" opacity="0.4">◄</text>',ny,accentColor)
+    -- Page name
+    svg[#svg+1] = stringf('<text x="960" y="%d" fill="%s" font-size="12" font-family="monospace" text-anchor="middle">%s  %d/%d</text>',ny,dimColor,pageNames[pageIdx] or "?",pageIdx,pageCount)
+    -- Right arrow
+    svg[#svg+1] = stringf('<text x="1890" y="%d" fill="%s" font-size="18" font-family="monospace" text-anchor="end" opacity="0.4">►</text>',ny,accentColor)
+    -- Page dots
+    local dotX = 960 - (pageCount*8)
+    for i=1,pageCount do
+        local dc = (i==pageIdx) and accentColor or rgba(60,70,80,0.6)
+        svg[#svg+1] = stringf('<circle cx="%d" cy="%d" r="3" fill="%s"/>',dotX+i*16,ny+10,dc)
+    end
+end
+
+local function svgClose(svg, pageIdx)
+    svgPageNav(svg, pageIdx)
+    svg[#svg+1] = '</svg>'
+    return tblConcat(svg)
+end
+
+local function svgNoData(svg, msg, pageIdx)
+    svg[#svg+1] = stringf('<text x="960" y="500" fill="%s" font-size="28" font-family="monospace" text-anchor="middle">AWAITING DATA</text>',warnColor)
+    svg[#svg+1] = stringf('<text x="960" y="540" fill="%s" font-size="16" font-family="monospace" text-anchor="middle">%s</text>',dimColor,msg)
+    return svgClose(svg, pageIdx)
+end
+
+-- ═══════════════════════════════════════════
+-- PAGE 1: TELEMETRY
+-- ═══════════════════════════════════════════
+local function fuelBar(x,y,w,h,pct,label)
+    if not pct then return "" end
+    local fill = mfloor(w*pct/100)
+    local bc = accentColor
+    if pct<10 then bc=dangerColor elseif pct<25 then bc=warnColor end
+    return stringf(
+        '<text x="%d" y="%d" fill="%s" font-size="14" font-family="monospace">%s</text>'..
+        '<rect x="%d" y="%d" width="%d" height="%d" fill="%s" rx="3"/>'..
+        '<rect x="%d" y="%d" width="%d" height="%d" fill="%s" rx="3"/>'..
+        '<text x="%d" y="%d" fill="white" font-size="12" font-family="monospace" text-anchor="end">%d%%</text>',
+        x,y-4,dimColor,label, x,y,w,h,rgba(40,50,60,0.8), x,y,fill,h,bc, x+w+40,y+h-3,pct)
+end
+
+local function statusDot(x,y,active,label)
+    local c = active and safeColor or rgba(60,70,80,0.8)
+    return stringf('<circle cx="%d" cy="%d" r="5" fill="%s"/><text x="%d" y="%d" fill="%s" font-size="13" font-family="monospace">%s</text>',
+        x,y,c, x+12,y+4, active and accentColor or dimColor, label)
+end
+
+local function renderTelemetry(pageIdx)
+    local flight = safeDecode("T_flight")
+    local ap = safeDecode("T_ap")
+    local ship = safeDecode("T_ship")
+    local fuel = safeDecode("T_fuel")
+    local svg = {}
+    svgOpen(svg)
+    local isPvp = ship and ship.pvp
+    local zl = isPvp and "PVP ZONE" or "SAFE ZONE"
+    local zc = isPvp and pvpColor or safeColor
+    svgTitle(svg,"ARCHHUD TELEMETRY",zl,zc)
+    if ship and ship.ver then
+        svg[#svg+1] = stringf('<text x="380" y="34" fill="%s" font-size="14" font-family="monospace">v%s</text>',dimColor,ship.ver)
+    end
+    if not flight then return svgNoData(svg,"Link databank to same databank as ArchHUD seat",pageIdx) end
+
+    local lx,ly = 30,70
+    svg[#svg+1] = stringf('<rect x="%d" y="%d" width="580" height="320" fill="%s" stroke="%s" rx="6"/>',lx-10,ly,panelColor,borderColor)
+    svg[#svg+1] = stringf('<text x="%d" y="%d" fill="%s" font-size="16" font-family="monospace" font-weight="bold">FLIGHT DATA</text>',lx+10,ly+28,accentColor)
+    local fy,lH = ly+55, 38
+    svg[#svg+1] = stringf('<text x="%d" y="%d" fill="%s" font-size="14" font-family="monospace">SPEED</text>',lx+10,fy,dimColor)
+    svg[#svg+1] = stringf('<text x="%d" y="%d" fill="white" font-size="28" font-family="monospace">%s</text>',lx+120,fy+2,fmtSpeedKmh(flight.spd))
+    svg[#svg+1] = stringf('<text x="%d" y="%d" fill="%s" font-size="14" font-family="monospace">(%s)</text>',lx+380,fy,dimColor,fmtSpeedMs(flight.spd))
+    fy=fy+lH+6
+    svg[#svg+1] = stringf('<text x="%d" y="%d" fill="%s" font-size="14" font-family="monospace">ALTITUDE</text>',lx+10,fy,dimColor)
+    svg[#svg+1] = stringf('<text x="%d" y="%d" fill="white" font-size="28" font-family="monospace">%s</text>',lx+120,fy+2,fmtAlt(flight.alt))
+    fy=fy+lH+6
+    local vColor = "white"
+    if flight.vspd>10 then vColor=safeColor elseif flight.vspd<-10 then vColor=warnColor end
+    local vSign = flight.vspd>=0 and "+" or ""
+    svg[#svg+1] = stringf('<text x="%d" y="%d" fill="%s" font-size="14" font-family="monospace">V-SPEED</text>',lx+10,fy,dimColor)
+    svg[#svg+1] = stringf('<text x="%d" y="%d" fill="%s" font-size="28" font-family="monospace">%s%.1f m/s</text>',lx+120,fy+2,vColor,vSign,flight.vspd)
+    fy=fy+lH+6
+    svg[#svg+1] = stringf('<text x="%d" y="%d" fill="%s" font-size="14" font-family="monospace">ATMO</text>',lx+10,fy,dimColor)
+    svg[#svg+1] = stringf('<text x="%d" y="%d" fill="white" font-size="22" font-family="monospace">%.1f%%</text>',lx+120,fy+2,flight.atmo)
+    svg[#svg+1] = stringf('<text x="%d" y="%d" fill="%s" font-size="14" font-family="monospace">THROTTLE</text>',lx+280,fy,dimColor)
+    svg[#svg+1] = stringf('<text x="%d" y="%d" fill="white" font-size="22" font-family="monospace">%d%%</text>',lx+400,fy+2,flight.thr)
+    fy=fy+lH
+    svg[#svg+1] = statusDot(lx+10,fy+8,flight.inA,"IN ATMO")
+    svg[#svg+1] = statusDot(lx+140,fy+8,flight.gear,"GEAR")
+    svg[#svg+1] = statusDot(lx+240,fy+8,flight.brk,"BRAKE")
+    svg[#svg+1] = statusDot(lx+350,fy+8,flight.near,"NEAR PLANET")
+
+    -- Autopilot panel
+    local rx = 640
+    svg[#svg+1] = stringf('<rect x="%d" y="%d" width="580" height="320" fill="%s" stroke="%s" rx="6"/>',rx-10,ly,panelColor,borderColor)
+    svg[#svg+1] = stringf('<text x="%d" y="%d" fill="%s" font-size="16" font-family="monospace" font-weight="bold">AUTOPILOT</text>',rx+10,ly+28,accentColor)
+    if ap then
+        local ay = ly+60
+        local asc = ap.on and safeColor or dimColor
+        svg[#svg+1] = stringf('<text x="%d" y="%d" fill="%s" font-size="14" font-family="monospace">STATUS</text>',rx+10,ay,dimColor)
+        svg[#svg+1] = stringf('<text x="%d" y="%d" fill="%s" font-size="24" font-family="monospace" font-weight="bold">%s</text>',rx+120,ay+2,asc,ap.on and "ENGAGED" or "OFF")
+        ay=ay+lH
+        svg[#svg+1] = stringf('<text x="%d" y="%d" fill="%s" font-size="14" font-family="monospace">PHASE</text>',rx+10,ay,dimColor)
+        svg[#svg+1] = stringf('<text x="%d" y="%d" fill="white" font-size="20" font-family="monospace">%s</text>',rx+120,ay+2,ap.stat or "---")
+        ay=ay+lH
+        svg[#svg+1] = stringf('<text x="%d" y="%d" fill="%s" font-size="14" font-family="monospace">TARGET</text>',rx+10,ay,dimColor)
+        svg[#svg+1] = stringf('<text x="%d" y="%d" fill="white" font-size="20" font-family="monospace">%s</text>',rx+120,ay+2,ap.tgt or "None")
+        ay=ay+lH
+        if ap.dist and ap.dist>0 then
+            svg[#svg+1] = stringf('<text x="%d" y="%d" fill="%s" font-size="14" font-family="monospace">DISTANCE</text>',rx+10,ay,dimColor)
+            svg[#svg+1] = stringf('<text x="%d" y="%d" fill="white" font-size="20" font-family="monospace">%s</text>',rx+120,ay+2,fmtDist(ap.dist))
+        end
+        ay=ay+lH
+        if ap.bDist and ap.bDist>0 then
+            svg[#svg+1] = stringf('<text x="%d" y="%d" fill="%s" font-size="14" font-family="monospace">BRAKE DIST</text>',rx+10,ay,dimColor)
+            svg[#svg+1] = stringf('<text x="%d" y="%d" fill="%s" font-size="20" font-family="monospace">%s</text>',rx+120,ay+2,warnColor,fmtDist(ap.bDist))
+        end
+        ay=ay+lH+10
+        svg[#svg+1] = statusDot(rx+10,ay,ap.ah,"ALT HOLD")
+        svg[#svg+1] = statusDot(rx+150,ay,ap.tb,"TURN+BURN")
+        svg[#svg+1] = statusDot(rx+300,ay,ap.orb,"ORBIT")
+        svg[#svg+1] = statusDot(rx+420,ay,ap.re,"REENTRY")
+    end
+
+    -- Fuel panel
+    local by = 420
+    svg[#svg+1] = stringf('<rect x="%d" y="%d" width="580" height="220" fill="%s" stroke="%s" rx="6"/>',lx-10,by,panelColor,borderColor)
+    svg[#svg+1] = stringf('<text x="%d" y="%d" fill="%s" font-size="16" font-family="monospace" font-weight="bold">FUEL</text>',lx+10,by+28,accentColor)
+    if fuel then
+        local barY,barW,barH,barS = by+50, 420, 18, 55
+        if fuel.atmo then svg[#svg+1] = fuelBar(lx+10,barY,barW,barH,fuel.atmo.pct,stringf("ATMO  [%d]",fuel.atmo.count)); barY=barY+barS end
+        if fuel.space then svg[#svg+1] = fuelBar(lx+10,barY,barW,barH,fuel.space.pct,stringf("SPACE [%d]",fuel.space.count)); barY=barY+barS end
+        if fuel.rocket then svg[#svg+1] = fuelBar(lx+10,barY,barW,barH,fuel.rocket.pct,stringf("RCKT  [%d]",fuel.rocket.count)) end
+    else
+        svg[#svg+1] = stringf('<text x="%d" y="%d" fill="%s" font-size="14" font-family="monospace">No fuel data</text>',lx+10,by+60,dimColor)
+    end
+
+    -- Ship status panel
+    svg[#svg+1] = stringf('<rect x="%d" y="%d" width="580" height="220" fill="%s" stroke="%s" rx="6"/>',rx-10,by,panelColor,borderColor)
+    svg[#svg+1] = stringf('<text x="%d" y="%d" fill="%s" font-size="16" font-family="monospace" font-weight="bold">SHIP STATUS</text>',rx+10,by+28,accentColor)
+    local sy = by+60
+    if ship and ship.shld >= 0 then
+        local sc = accentColor
+        if ship.shld<25 then sc=dangerColor elseif ship.shld<50 then sc=warnColor end
+        svg[#svg+1] = stringf('<text x="%d" y="%d" fill="%s" font-size="14" font-family="monospace">SHIELD</text>',rx+10,sy,dimColor)
+        svg[#svg+1] = stringf('<text x="%d" y="%d" fill="%s" font-size="24" font-family="monospace">%d%%</text>',rx+120,sy+2,sc,ship.shld)
+    else
+        svg[#svg+1] = stringf('<text x="%d" y="%d" fill="%s" font-size="14" font-family="monospace">SHIELD</text><text x="%d" y="%d" fill="%s" font-size="20" font-family="monospace">N/A</text>',rx+10,sy,dimColor,rx+120,sy+2,dimColor)
+    end
+    if flight then
+        svg[#svg+1] = stringf('<text x="%d" y="%d" fill="%s" font-size="14" font-family="monospace">MASS</text>',rx+280,sy,dimColor)
+        local ms = flight.mass>1000 and stringf("%.1f t",flight.mass/1000) or stringf("%d kg",flight.mass)
+        svg[#svg+1] = stringf('<text x="%d" y="%d" fill="white" font-size="20" font-family="monospace">%s</text>',rx+380,sy+2,ms)
+    end
+    sy=sy+50
+    svg[#svg+1] = stringf('<line x1="%d" y1="%d" x2="%d" y2="%d" stroke="%s" stroke-width="1"/>',rx,sy-15,rx+560,sy-15,borderColor)
+    svg[#svg+1] = stringf('<text x="%d" y="%d" fill="%s" font-size="15" font-family="monospace" font-weight="bold">ODOMETER</text>',rx+10,sy,accentColor)
+    sy=sy+32
+    if ship then
+        svg[#svg+1] = stringf('<text x="%d" y="%d" fill="%s" font-size="14" font-family="monospace">TOTAL DIST</text>',rx+10,sy,dimColor)
+        svg[#svg+1] = stringf('<text x="%d" y="%d" fill="white" font-size="20" font-family="monospace">%s</text>',rx+160,sy+2,fmtDist(ship.odo))
+        svg[#svg+1] = stringf('<text x="%d" y="%d" fill="%s" font-size="14" font-family="monospace">FLIGHT TIME</text>',rx+300,sy,dimColor)
+        svg[#svg+1] = stringf('<text x="%d" y="%d" fill="white" font-size="20" font-family="monospace">%s</text>',rx+450,sy+2,fmtTime(ship.ft))
+    end
+
+    svgFresh(svg,flight,30,SH-45)
+    return svgClose(svg, pageIdx)
+end
+
+-- ═══════════════════════════════════════════
+-- PAGE 2: RADAR
+-- ═══════════════════════════════════════════
+local radarStateLabels = {[1]="OPERATIONAL",[0]="BROKEN",[-1]="JAMMED",[-2]="OBSTRUCTED",[-3]="IN USE",[-4]="NO RADAR"}
+local radarStateColors = {[1]=safeColor,[0]=dangerColor,[-1]=dangerColor,[-2]=warnColor,[-3]=warnColor,[-4]=dimColor}
+
+local function contactColor(c,isPvp)
+    if c.f then return safeColor end
+    if c.k=="Static" then return staticColor end
+    if isPvp then return c.d<2000 and dangerColor or amberColor end
+    return accentColor
+end
+
+local function renderRadar(pageIdx)
+    local radar = safeDecode("T_radar")
+    local flight = safeDecode("T_flight")
+    local ship = safeDecode("T_ship")
+    local svg = {}
+    svgOpen(svg)
+    local isPvp = (ship and ship.pvp) or (radar and radar.pvp)
+    local zl = isPvp and "PVP ZONE" or "SAFE ZONE"
+    local zc = isPvp and pvpColor or safeColor
+    svgTitle(svg,"ARCHHUD RADAR",zl,zc)
+    if not radar then return svgNoData(svg,"No radar telemetry from databank",pageIdx) end
+
+    -- Status bar
+    local statusY = 55
+    svg[#svg+1] = stringf('<rect x="0" y="%d" width="%d" height="55" fill="%s"/>',statusY,SW,panelColor)
+    local rState = radar.state or -4
+    local stLabel = radarStateLabels[rState] or "UNKNOWN"
+    local stColor = radarStateColors[rState] or dimColor
+    svg[#svg+1] = stringf('<text x="40" y="%d" fill="%s" font-size="14" font-family="monospace">RADAR STATUS</text>',statusY+24,dimColor)
+    svg[#svg+1] = stringf('<circle cx="200" cy="%d" r="6" fill="%s"/>',statusY+20,stColor)
+    svg[#svg+1] = stringf('<text x="214" y="%d" fill="%s" font-size="16" font-family="monospace" font-weight="bold">%s</text>',statusY+25,stColor,stLabel)
+    local cc = radar.count or 0
+    svg[#svg+1] = stringf('<text x="500" y="%d" fill="%s" font-size="14" font-family="monospace">CONTACTS</text>',statusY+24,dimColor)
+    svg[#svg+1] = stringf('<text x="620" y="%d" fill="%s" font-size="22" font-family="monospace" font-weight="bold">%d</text>',statusY+26,cc>0 and accentColor or dimColor,cc)
+    if isPvp and radar.list then
+        local threats = 0
+        for _,c in ipairs(radar.list) do if not c.f and c.k=="Dynamic" then threats=threats+1 end end
+        if threats>0 then
+            svg[#svg+1] = stringf('<text x="720" y="%d" fill="%s" font-size="14" font-family="monospace">THREATS</text>',statusY+24,dimColor)
+            svg[#svg+1] = stringf('<text x="830" y="%d" fill="%s" font-size="22" font-family="monospace" font-weight="bold">%d</text>',statusY+26,dangerColor,threats)
+        end
+    end
+
+    -- Contact table
+    local tableY,rowH,maxRows = 120, 36, 22
+    svg[#svg+1] = stringf('<rect x="20" y="%d" width="%d" height="%d" fill="%s" stroke="%s" rx="6"/>',tableY,SW-40,SH-tableY-70,panelColor,borderColor)
+    local cN,cNm,cD,cS,cT,cF = 50,110,900,1200,1350,1600
+    local hY = tableY+30
+    svg[#svg+1] = stringf('<text x="%d" y="%d" fill="%s" font-size="14" font-family="monospace" font-weight="bold">#</text>',cN,hY,accentColor)
+    svg[#svg+1] = stringf('<text x="%d" y="%d" fill="%s" font-size="14" font-family="monospace" font-weight="bold">NAME</text>',cNm,hY,accentColor)
+    svg[#svg+1] = stringf('<text x="%d" y="%d" fill="%s" font-size="14" font-family="monospace" font-weight="bold">DISTANCE</text>',cD,hY,accentColor)
+    svg[#svg+1] = stringf('<text x="%d" y="%d" fill="%s" font-size="14" font-family="monospace" font-weight="bold">SIZE</text>',cS,hY,accentColor)
+    svg[#svg+1] = stringf('<text x="%d" y="%d" fill="%s" font-size="14" font-family="monospace" font-weight="bold">TYPE</text>',cT,hY,accentColor)
+    svg[#svg+1] = stringf('<text x="%d" y="%d" fill="%s" font-size="14" font-family="monospace" font-weight="bold">STATUS</text>',cF,hY,accentColor)
+    svg[#svg+1] = stringf('<line x1="40" y1="%d" x2="%d" y2="%d" stroke="%s" stroke-width="1"/>',hY+8,SW-40,hY+8,borderColor)
+
+    local contacts = radar.list or {}
+    tblSort(contacts, function(a,b) return (a.d or 0)<(b.d or 0) end)
+    local rStartY = hY+14
+    local rendered = 0
+    if #contacts==0 and rState==1 then
+        svg[#svg+1] = stringf('<text x="%d" y="%d" fill="%s" font-size="18" font-family="monospace" text-anchor="middle">NO CONTACTS DETECTED</text>',SW/2,rStartY+60,dimColor)
+    elseif rState~=1 then
+        svg[#svg+1] = stringf('<text x="%d" y="%d" fill="%s" font-size="18" font-family="monospace" text-anchor="middle">RADAR %s</text>',SW/2,rStartY+60,stColor,stLabel)
+    else
+        for i,ct in ipairs(contacts) do
+            if rendered>=maxRows then break end
+            local ry = rStartY+(rendered*rowH)
+            local nc = contactColor(ct,isPvp)
+            if rendered%2==0 then svg[#svg+1] = stringf('<rect x="30" y="%d" width="%d" height="%d" fill="%s" rx="2"/>',ry-2,SW-60,rowH-2,rgba(30,40,55,0.4)) end
+            svg[#svg+1] = stringf('<text x="%d" y="%d" fill="%s" font-size="14" font-family="monospace">%d</text>',cN,ry+20,dimColor,i)
+            local nm = esc(ct.n or "Unknown"); if #nm>50 then nm=nm:sub(1,47).."..." end
+            svg[#svg+1] = stringf('<text x="%d" y="%d" fill="%s" font-size="16" font-family="monospace">%s</text>',cNm,ry+21,nc,nm)
+            local dc = "white"
+            if isPvp and not ct.f and ct.k=="Dynamic" then dc = ct.d<2000 and dangerColor or (ct.d<10000 and warnColor or dc) end
+            svg[#svg+1] = stringf('<text x="%d" y="%d" fill="%s" font-size="16" font-family="monospace">%s</text>',cD,ry+21,dc,fmtDist(ct.d or 0))
+            svg[#svg+1] = stringf('<text x="%d" y="%d" fill="%s" font-size="15" font-family="monospace">%s</text>',cS,ry+21,dimColor,ct.s or "?")
+            svg[#svg+1] = stringf('<text x="%d" y="%d" fill="%s" font-size="15" font-family="monospace">%s</text>',cT,ry+21,ct.k=="Dynamic" and accentColor or staticColor,ct.k or "?")
+            svg[#svg+1] = stringf('<text x="%d" y="%d" fill="%s" font-size="15" font-family="monospace">%s</text>',cF,ry+21,ct.f and safeColor or dimColor,ct.f and "FRIENDLY" or "UNKNOWN")
+            rendered = rendered+1
+        end
+        if #contacts>maxRows then
+            svg[#svg+1] = stringf('<text x="%d" y="%d" fill="%s" font-size="13" font-family="monospace" text-anchor="middle">... +%d more</text>',SW/2,rStartY+(maxRows*rowH)+16,dimColor,#contacts-maxRows)
+        end
+    end
+
+    svgFresh(svg,flight,40,SH-45)
+    return svgClose(svg, pageIdx)
+end
+
+-- ═══════════════════════════════════════════
+-- PAGE 3: DAMAGE
+-- ═══════════════════════════════════════════
+local damageListPage = 0
+
+local function integrityColor(pct)
+    pct = mmax(0,mmin(100,pct))
+    if pct>=50 then
+        local t=(pct-50)/50
+        return rgb(mfloor(255-195*t),255,mfloor(120*t))
+    else
+        local t=pct/50
+        return rgb(255,mfloor(60+195*t),mfloor(60-60*t))
+    end
+end
+
+local function renderDamage(pageIdx)
+    local damage = safeDecode("T_damage")
+    local flight = safeDecode("T_flight")
+    local svg = {}
+    svgOpen(svg)
+    svgTitle(svg,"ARCHHUD DAMAGE REPORT")
+    if flight and flight.time then
+        local age = system.getArkTime()-flight.time
+        local fc = age<15 and safeColor or (age<30 and warnColor or dangerColor)
+        local ft = age<15 and "LIVE" or stringf("%.0fs AGO",age)
+        svg[#svg+1] = stringf('<circle cx="%d" cy="25" r="5" fill="%s"/><text x="%d" y="30" fill="%s" font-size="14" font-family="monospace" text-anchor="end">DATA: %s</text>',SW-200,fc,SW-20,fc,ft)
+    end
+    if not damage then return svgNoData(svg,"Damage telemetry published every 10s while seated",pageIdx) end
+
+    local pct = damage.pct or 0
+    local iColor = integrityColor(pct)
+    svg[#svg+1] = stringf('<text x="%d" y="150" fill="%s" font-size="80" font-family="monospace" font-weight="bold" text-anchor="middle">%.1f%%</text>',SW/2,iColor,pct)
+    svg[#svg+1] = stringf('<text x="%d" y="178" fill="%s" font-size="16" font-family="monospace" text-anchor="middle">SHIP INTEGRITY</text>',SW/2,dimColor)
+    -- Bar
+    local bx,bY,bW,bH = 40,198,SW-80,24
+    local bf = mmax(0,mfloor(bW*pct/100))
+    svg[#svg+1] = stringf('<rect x="%d" y="%d" width="%d" height="%d" fill="%s" rx="4"/>',bx,bY,bW,bH,rgba(40,50,60,0.8))
+    if bf>0 then svg[#svg+1] = stringf('<rect x="%d" y="%d" width="%d" height="%d" fill="%s" rx="4"/>',bx,bY,bf,bH,iColor) end
+    svg[#svg+1] = stringf('<rect x="%d" y="%d" width="%d" height="%d" fill="none" stroke="%s" stroke-width="1" rx="4"/>',bx,bY,bW,bH,borderColor)
+    svg[#svg+1] = stringf('<text x="%d" y="252" fill="%s" font-size="16" font-family="monospace" text-anchor="middle">%d damaged  |  %d disabled  |  %d total</text>',SW/2,dimColor,damage.dmg or 0,damage.off or 0,damage.tot or 0)
+
+    -- Element list
+    local listTop,listBot,listX,listW = 275,SH-60,40,SW-80
+    svg[#svg+1] = stringf('<rect x="%d" y="%d" width="%d" height="%d" fill="%s" stroke="%s" rx="6"/>',listX-10,listTop-10,listW+20,listBot-listTop+20,panelColor,borderColor)
+    local list = damage.list
+    if not list or #list==0 then
+        svg[#svg+1] = stringf('<text x="%d" y="%d" fill="%s" font-size="30" font-family="monospace" text-anchor="middle" font-weight="bold">ALL SYSTEMS OPERATIONAL</text>',SW/2,(listTop+listBot)/2,safeColor)
+    else
+        local hdY = listTop+10
+        svg[#svg+1] = stringf('<text x="%d" y="%d" fill="%s" font-size="13" font-family="monospace">ELEMENT</text><text x="%d" y="%d" fill="%s" font-size="13" font-family="monospace">TYPE</text><text x="%d" y="%d" fill="%s" font-size="13" font-family="monospace">HEALTH</text><text x="%d" y="%d" fill="%s" font-size="13" font-family="monospace">HP</text>',
+            listX,hdY,dimColor, listX+520,hdY,dimColor, listX+1050,hdY,dimColor, listX+1560,hdY,dimColor)
+        svg[#svg+1] = stringf('<line x1="%d" y1="%d" x2="%d" y2="%d" stroke="%s" stroke-width="1"/>',listX,hdY+10,listX+listW,hdY+10,borderColor)
+        local rowHt,contentTop = 50, hdY+20
+        local availH = listBot-contentTop-10
+        local perPage = mmax(1,mfloor(availH/rowHt))
+        local totalPages = mmax(1,mceil(#list/perPage))
+        local pg = damageListPage % totalPages
+        local sIdx = pg*perPage+1
+        local eIdx = mmin(sIdx+perPage-1,#list)
+        local ey = contentTop+20
+        for i=sIdx,eIdx do
+            local el = list[i]
+            if el then
+                local en = esc((el.n or "Unknown"):sub(1,34))
+                local et = esc((el.t or ""):sub(1,28))
+                local ep = el.mhp>0 and (el.hp/el.mhp*100) or 0
+                local dead = el.hp<=0 or el.off
+                local rc = dead and dangerColor or (ep>=50 and rgb(255,200,50) or rgb(255,130,30))
+                svg[#svg+1] = stringf('<text x="%d" y="%d" fill="%s" font-size="15" font-family="monospace">%s</text>',listX,ey,rc,en)
+                svg[#svg+1] = stringf('<text x="%d" y="%d" fill="%s" font-size="13" font-family="monospace">%s</text>',listX+520,ey,dimColor,et)
+                local hbx,hbw,hbh = listX+1050,460,14
+                svg[#svg+1] = stringf('<rect x="%d" y="%d" width="%d" height="%d" fill="%s" rx="2"/>',hbx,ey-11,hbw,hbh,rgba(40,50,60,0.8))
+                local hf = mmax(0,mfloor(hbw*ep/100))
+                if hf>0 then svg[#svg+1] = stringf('<rect x="%d" y="%d" width="%d" height="%d" fill="%s" rx="2"/>',hbx,ey-11,hf,hbh,rc) end
+                if dead then
+                    svg[#svg+1] = stringf('<text x="%d" y="%d" fill="%s" font-size="13" font-family="monospace" font-weight="bold">DESTROYED</text>',listX+1560,ey,dangerColor)
+                else
+                    svg[#svg+1] = stringf('<text x="%d" y="%d" fill="%s" font-size="13" font-family="monospace">%d / %d</text>',listX+1560,ey,dimColor,el.hp,el.mhp)
+                end
+                ey = ey+rowHt
+            end
+        end
+        if totalPages>1 then
+            svg[#svg+1] = stringf('<text x="%d" y="%d" fill="%s" font-size="14" font-family="monospace" text-anchor="end">PAGE %d / %d</text>',listX+listW,listBot+5,dimColor,pg+1,totalPages)
+        end
+    end
+    return svgClose(svg, pageIdx)
+end
+
+-- ═══════════════════════════════════════════
+-- PAGE 4: FLIGHT RECORDER
+-- ═══════════════════════════════════════════
+local MAX_HISTORY = 180
+local history = {}
+
 local function loadHistory()
     if db.hasKey("T_history") then
         local ok,data = pcall(jdecode,db.getStringValue("T_history"))
@@ -169,9 +518,228 @@ local function recordSnapshot()
     db.setStringValue("T_history",jencode(history))
 end
 
+local function drawChart(svg,panelY,panelH,times,values,n,lineColor,chartLabel,fmtLabel,fmtCurr,showZero)
+    local pX,pW = 105,1495
+    local pX2 = pX+pW
+    local plotY,plotH = panelY+34, panelH-44
+    local infoX = 1660
+    svg[#svg+1] = stringf('<rect x="15" y="%d" width="1610" height="%d" fill="%s" stroke="%s" rx="6"/>',panelY,panelH,panelColor,borderColor)
+    svg[#svg+1] = stringf('<text x="30" y="%d" fill="%s" font-size="15" font-family="monospace" font-weight="bold">%s</text>',panelY+24,accentColor,chartLabel)
+    if n==0 then
+        svg[#svg+1] = stringf('<text x="820" y="%d" fill="%s" font-size="16" font-family="monospace" text-anchor="middle">NO DATA</text>',panelY+panelH/2,dimColor)
+        return
+    end
+    local vmin,vmax = values[1],values[1]
+    for i=2,n do if values[i]<vmin then vmin=values[i] end; if values[i]>vmax then vmax=values[i] end end
+    if showZero then if vmin>0 then vmin=0 end; if vmax<0 then vmax=0 end end
+    local rng = vmax-vmin
+    if rng<0.1 then local ctr=(vmin+vmax)/2; vmin=ctr-1; vmax=ctr+1; rng=2 else vmin=vmin-rng*0.08; vmax=vmax+rng*0.08; rng=vmax-vmin end
+    for i=0,5 do
+        local fr=i/5; local gy=plotY+plotH-fr*plotH; local gv=vmin+fr*rng
+        svg[#svg+1] = stringf('<line x1="%d" y1="%.1f" x2="%d" y2="%.1f" stroke="%s" stroke-width="0.5"/>',pX,gy,pX2,gy,gridColor)
+        svg[#svg+1] = stringf('<text x="%d" y="%.1f" fill="%s" font-size="11" font-family="monospace" text-anchor="end">%s</text>',pX-8,gy+4,dimColor,fmtLabel(gv))
+    end
+    if showZero and vmin<0 and vmax>0 then
+        local zy=plotY+plotH-((0-vmin)/rng)*plotH
+        svg[#svg+1] = stringf('<line x1="%d" y1="%.1f" x2="%d" y2="%.1f" stroke="%s" stroke-width="1" stroke-dasharray="6,4"/>',pX,zy,pX2,zy,rgba(255,255,255,0.3))
+    end
+    local tS,tE = times[1],times[n]; local tR=tE-tS; if tR<1 then tR=1 end
+    local pts = {}
+    for i=1,n do
+        local xf=(times[i]-tS)/tR; local yf=(values[i]-vmin)/rng
+        pts[i] = stringf("%.1f,%.1f",pX+xf*pW,plotY+plotH-yf*plotH)
+    end
+    svg[#svg+1] = stringf('<polyline points="%s" fill="none" stroke="%s" stroke-width="2" stroke-linejoin="round"/>',tblConcat(pts," "),lineColor)
+    local ex=pX+((times[n]-tS)/tR)*pW; local ey=plotY+plotH-((values[n]-vmin)/rng)*plotH
+    svg[#svg+1] = stringf('<circle cx="%.1f" cy="%.1f" r="4" fill="%s"/>',ex,ey,lineColor)
+    svg[#svg+1] = stringf('<text x="%d" y="%d" fill="%s" font-size="12" font-family="monospace">CURRENT</text>',infoX,panelY+22,dimColor)
+    svg[#svg+1] = stringf('<text x="%d" y="%d" fill="%s" font-size="26" font-family="monospace" font-weight="bold">%s</text>',infoX,panelY+52,lineColor,fmtCurr(values[n]))
+end
+
+local function renderRecorder(pageIdx)
+    local n = #history
+    local now = system.getArkTime()
+    local svg = {}
+    svgOpen(svg)
+    svgTitle(svg,"ARCHHUD FLIGHT RECORDER")
+    local isRec = n>0 and (now-history[n].t)<30
+    if isRec then
+        svg[#svg+1] = stringf('<circle cx="%d" cy="28" r="6" fill="%s"/><text x="%d" y="34" fill="%s" font-size="16" font-family="monospace" font-weight="bold">REC</text><text x="%d" y="34" fill="%s" font-size="14" font-family="monospace">%d samples</text>',
+            SW-260,dangerColor,SW-248,dangerColor,SW-200,dimColor,n)
+    else
+        svg[#svg+1] = stringf('<circle cx="%d" cy="28" r="6" fill="%s"/><text x="%d" y="34" fill="%s" font-size="16" font-family="monospace">NO DATA</text>',SW-260,rgba(80,80,80,0.8),SW-248,dimColor)
+    end
+
+    local times,speeds,alts,vspeeds = {},{},{},{}
+    for i=1,n do local h=history[i]; times[i]=h.t; speeds[i]=h.s*3.6; alts[i]=h.a; vspeeds[i]=h.v end
+    local cH = 290
+    drawChart(svg,60,cH,times,speeds,n,accentColor,"SPEED (km/h)",
+        function(v) return v>10000 and stringf("%.1fk",v/1000) or stringf("%.0f",v) end,
+        function(v) return stringf("%.0f km/h",v) end, false)
+    drawChart(svg,360,cH,times,alts,n,safeColor,"ALTITUDE",
+        function(v) return fmtAlt(v) end, function(v) return fmtAlt(v) end, false)
+    drawChart(svg,660,cH,times,vspeeds,n,warnColor,"VERTICAL SPEED (m/s)",
+        function(v) return stringf("%.1f",v) end,
+        function(v) return stringf("%s%.1f m/s",v>=0 and "+" or "",v) end, true)
+
+    -- Time axis
+    if n>1 then
+        local axY,plotX,plotX2 = 960,105,1600
+        local tS,tE = times[1],times[n]; local totalS=tE-tS
+        local ti = totalS>1500 and 300 or (totalS>600 and 120 or (totalS>300 and 60 or 30))
+        svg[#svg+1] = stringf('<line x1="%d" y1="%d" x2="%d" y2="%d" stroke="%s" stroke-width="1"/>',plotX,axY,plotX2,axY,borderColor)
+        for i=0,mfloor(totalS/ti) do
+            local sa=i*ti; local t=tE-sa
+            if t>=tS then
+                local x=plotX+((t-tS)/totalS)*(plotX2-plotX)
+                svg[#svg+1] = stringf('<line x1="%.1f" y1="%d" x2="%.1f" y2="%d" stroke="%s" stroke-width="1"/>',x,axY,x,axY+8,dimColor)
+                local lb = sa==0 and "now" or (sa<60 and stringf("%ds",sa) or stringf("%dm",mfloor(sa/60)))
+                svg[#svg+1] = stringf('<text x="%.1f" y="%d" fill="%s" font-size="12" font-family="monospace" text-anchor="middle">%s</text>',x,axY+22,dimColor,lb)
+            end
+        end
+    end
+
+    if n>0 then
+        local age=now-history[n].t
+        local fc=age<15 and safeColor or (age<30 and warnColor or dangerColor)
+        svg[#svg+1] = stringf('<circle cx="30" cy="%d" r="5" fill="%s"/><text x="42" y="%d" fill="%s" font-size="13" font-family="monospace">DATA: %s</text>',
+            SH-40,fc,SH-35,fc,age<15 and "LIVE" or stringf("%.0fs AGO",age))
+        local dur=now-history[1].t
+        local dt = dur>3600 and stringf("%.1fh recorded",dur/3600) or (dur>60 and stringf("%dm recorded",mfloor(dur/60)) or stringf("%ds recorded",mfloor(dur)))
+        svg[#svg+1] = stringf('<text x="%d" y="%d" fill="%s" font-size="13" font-family="monospace" text-anchor="end">%s</text>',SW-20,SH-35,dimColor,dt)
+    end
+    return svgClose(svg, pageIdx)
+end
+
 -- ═══════════════════════════════════════════
--- Alert Checks
+-- PAGE 5: ROUTE PLANNER
 -- ═══════════════════════════════════════════
+local routeColor = rgb(100,200,255)
+local currentColor = rgb(255,220,50)
+local pendingColor = rgba(130,224,255,0.5)
+
+local function renderRoute(pageIdx)
+    local route = safeDecode("T_route")
+    local ap = safeDecode("T_ap")
+    local flight = safeDecode("T_flight")
+    local svg = {}
+    svgOpen(svg)
+    svgTitle(svg,"ARCHHUD ROUTE PLANNER")
+    if flight and flight.time then
+        local age=system.getArkTime()-flight.time
+        local fc=age<5 and safeColor or (age<15 and warnColor or dangerColor)
+        svg[#svg+1] = stringf('<circle cx="%d" cy="25" r="5" fill="%s"/><text x="%d" y="30" fill="%s" font-size="14" font-family="monospace" text-anchor="end">DATA: %s</text>',
+            SW-200,fc,SW-20,fc,age<5 and "LIVE" or stringf("%.0fs AGO",age))
+    end
+    if not route then return svgNoData(svg,"Route telemetry published every 3s while seated",pageIdx) end
+
+    if not route.active then
+        svg[#svg+1] = stringf('<rect x="40" y="80" width="%d" height="200" fill="%s" stroke="%s" rx="8"/>',SW-80,panelColor,borderColor)
+        svg[#svg+1] = stringf('<text x="%d" y="170" fill="%s" font-size="32" font-family="monospace" text-anchor="middle" font-weight="bold">NO ACTIVE ROUTE</text>',SW/2,dimColor)
+        svg[#svg+1] = stringf('<text x="%d" y="210" fill="%s" font-size="16" font-family="monospace" text-anchor="middle">Select a target and use ALT+SHIFT+8 to add waypoints</text>',SW/2,pendingColor)
+        if route.saved and route.savedCount and route.savedCount>0 then
+            svg[#svg+1] = stringf('<text x="%d" y="250" fill="%s" font-size="16" font-family="monospace" text-anchor="middle">Saved route: %d waypoints</text>',SW/2,safeColor,route.savedCount)
+        end
+        if ap then
+            svg[#svg+1] = stringf('<text x="40" y="%d" fill="%s" font-size="14" font-family="monospace">AP TARGET: %s</text>',SH-40,ap.on and safeColor or dimColor,esc(ap.tgt or "None"))
+        end
+        return svgClose(svg, pageIdx)
+    end
+
+    local wps = route.wps or {}
+    local wpCount = route.count or #wps
+    local progress = route.progress or 0
+    local spd = route.spd or 0
+
+    -- Overview panel
+    local ovY,ovH = 60,130
+    svg[#svg+1] = stringf('<rect x="20" y="%d" width="%d" height="%d" fill="%s" stroke="%s" rx="6"/>',ovY,SW-40,ovH,panelColor,borderColor)
+    svg[#svg+1] = stringf('<text x="50" y="%d" fill="%s" font-size="14" font-family="monospace">ROUTE PROGRESS</text>',ovY+28,dimColor)
+    svg[#svg+1] = stringf('<text x="260" y="%d" fill="%s" font-size="28" font-family="monospace" font-weight="bold">%.1f%%</text>',ovY+30,accentColor,progress)
+    local pbX,pbY,pbW,pbH = 50,ovY+42,SW-100,20
+    local pbF = mmax(0,mfloor(pbW*progress/100))
+    svg[#svg+1] = stringf('<rect x="%d" y="%d" width="%d" height="%d" fill="%s" rx="4"/>',pbX,pbY,pbW,pbH,rgba(40,50,60,0.8))
+    if pbF>0 then svg[#svg+1] = stringf('<rect x="%d" y="%d" width="%d" height="%d" fill="%s" rx="4"/>',pbX,pbY,pbF,pbH,accentColor) end
+    svg[#svg+1] = stringf('<rect x="%d" y="%d" width="%d" height="%d" fill="none" stroke="%s" rx="4"/>',pbX,pbY,pbW,pbH,borderColor)
+    for i=1,wpCount do
+        local mx=pbX+mfloor(pbW*(i/wpCount))
+        local mc = wps[i] and wps[i].cur and currentColor or rgba(255,255,255,0.4)
+        svg[#svg+1] = stringf('<line x1="%d" y1="%d" x2="%d" y2="%d" stroke="%s" stroke-width="1"/>',mx,pbY,mx,pbY+pbH,mc)
+    end
+    local sY = pbY+pbH+22
+    svg[#svg+1] = stringf('<text x="50" y="%d" fill="%s" font-size="12" font-family="monospace">TOTAL</text><text x="50" y="%d" fill="%s" font-size="16" font-family="monospace" font-weight="bold">%s</text>',sY,dimColor,sY+18,accentColor,fmtDist(route.totalDist))
+    svg[#svg+1] = stringf('<text x="350" y="%d" fill="%s" font-size="12" font-family="monospace">REMAINING</text><text x="350" y="%d" fill="%s" font-size="16" font-family="monospace" font-weight="bold">%s</text>',sY,dimColor,sY+18,warnColor,fmtDist(route.remainDist))
+    svg[#svg+1] = stringf('<text x="700" y="%d" fill="%s" font-size="12" font-family="monospace">ETA</text><text x="700" y="%d" fill="%s" font-size="16" font-family="monospace" font-weight="bold">%s</text>',sY,dimColor,sY+18,safeColor,fmtTime(route.remainEta))
+    svg[#svg+1] = stringf('<text x="1000" y="%d" fill="%s" font-size="12" font-family="monospace">SPEED</text><text x="1000" y="%d" fill="%s" font-size="16" font-family="monospace" font-weight="bold">%s</text>',sY,dimColor,sY+18,accentColor,fmtSpeed(spd))
+    svg[#svg+1] = stringf('<text x="1350" y="%d" fill="%s" font-size="12" font-family="monospace">WAYPOINTS</text><text x="1350" y="%d" fill="%s" font-size="16" font-family="monospace" font-weight="bold">%d</text>',sY,dimColor,sY+18,accentColor,wpCount)
+    local apOn = ap and ap.on
+    svg[#svg+1] = stringf('<text x="1600" y="%d" fill="%s" font-size="12" font-family="monospace">AUTOPILOT</text><text x="1600" y="%d" fill="%s" font-size="16" font-family="monospace" font-weight="bold">%s</text>',sY,dimColor,sY+18,apOn and safeColor or dimColor,apOn and "ACTIVE" or "OFF")
+
+    -- Waypoint list
+    local ltop = ovY+ovH+15
+    local lbot = SH-70
+    svg[#svg+1] = stringf('<rect x="20" y="%d" width="%d" height="%d" fill="%s" stroke="%s" rx="6"/>',ltop,SW-40,lbot-ltop,panelColor,borderColor)
+    local hdY = ltop+25
+    svg[#svg+1] = stringf('<text x="70" y="%d" fill="%s" font-size="13" font-family="monospace" font-weight="bold">#</text><text x="140" y="%d" fill="%s" font-size="13" font-family="monospace" font-weight="bold">WAYPOINT</text><text x="850" y="%d" fill="%s" font-size="13" font-family="monospace" font-weight="bold">PLANET</text><text x="1100" y="%d" fill="%s" font-size="13" font-family="monospace" font-weight="bold">LEG DIST</text><text x="1350" y="%d" fill="%s" font-size="13" font-family="monospace" font-weight="bold">FROM SHIP</text><text x="1650" y="%d" fill="%s" font-size="13" font-family="monospace" font-weight="bold">ETA</text>',
+        hdY,accentColor,hdY,accentColor,hdY,accentColor,hdY,accentColor,hdY,accentColor,hdY,accentColor)
+    svg[#svg+1] = stringf('<line x1="35" y1="%d" x2="%d" y2="%d" stroke="%s" stroke-width="1"/>',hdY+10,SW-55,hdY+10,borderColor)
+
+    local rowHt = 58
+    local rowSY = hdY+20
+    local maxR = mfloor((lbot-rowSY-10)/rowHt)
+    local connX = 55
+    for i=1,mmin(wpCount,maxR) do
+        local wp = wps[i]; if not wp then break end
+        local ry = rowSY+((i-1)*rowHt)
+        local isCur = wp.cur
+        local nm = esc(wp.n or "Unknown"); if #nm>42 then nm=nm:sub(1,40)..".." end
+        local planet = esc(wp.p or "")
+        local legD = fmtDist(wp.leg)
+        local shipD = fmtDist(wp.d)
+        local eta = "---"
+        if spd>1 and wp.d and wp.d>0 then eta = fmtTime(wp.d/spd) end
+        local nodeC,nameC,txtC
+        if isCur then
+            nodeC,nameC,txtC = currentColor,currentColor,"white"
+            svg[#svg+1] = stringf('<rect x="25" y="%d" width="%d" height="%d" fill="%s" rx="3"/>',ry-8,SW-50,rowHt-4,rgba(255,220,50,0.08))
+        else nodeC,nameC,txtC = pendingColor,pendingColor,dimColor end
+        if i<wpCount and i<maxR then
+            svg[#svg+1] = stringf('<line x1="%d" y1="%d" x2="%d" y2="%d" stroke="%s" stroke-width="2" stroke-dasharray="4,4"/>',connX,ry+14,connX,ry+rowHt-8,rgba(130,224,255,0.2))
+        end
+        if isCur then
+            svg[#svg+1] = stringf('<circle cx="%d" cy="%d" r="14" fill="none" stroke="%s" stroke-width="2"/><circle cx="%d" cy="%d" r="8" fill="%s"/>',connX,ry+2,currentColor,connX,ry+2,currentColor)
+            svg[#svg+1] = stringf('<text x="%d" y="%d" fill="%s" font-size="11" font-family="monospace" text-anchor="middle">%d</text>',connX,ry+5,rgb(12,16,22),i)
+        else
+            svg[#svg+1] = stringf('<circle cx="%d" cy="%d" r="12" fill="none" stroke="%s" stroke-width="1.5"/><text x="%d" y="%d" fill="%s" font-size="12" font-family="monospace" text-anchor="middle">%d</text>',connX,ry+2,nodeC,connX,ry+6,nodeC,i)
+        end
+        svg[#svg+1] = stringf('<text x="140" y="%d" fill="%s" font-size="17" font-family="monospace"%s>%s</text>',ry+6,nameC,isCur and ' font-weight="bold"' or "",nm)
+        if isCur then svg[#svg+1] = stringf('<text x="140" y="%d" fill="%s" font-size="11" font-family="monospace">CURRENT TARGET</text>',ry+22,currentColor) end
+        svg[#svg+1] = stringf('<text x="850" y="%d" fill="%s" font-size="15" font-family="monospace">%s</text>',ry+6,txtC,planet)
+        svg[#svg+1] = stringf('<text x="1100" y="%d" fill="%s" font-size="15" font-family="monospace">%s</text>',ry+6,txtC,legD)
+        svg[#svg+1] = stringf('<text x="1350" y="%d" fill="%s" font-size="15" font-family="monospace"%s>%s</text>',ry+6,isCur and currentColor or txtC,isCur and ' font-weight="bold"' or "",shipD)
+        svg[#svg+1] = stringf('<text x="1650" y="%d" fill="%s" font-size="15" font-family="monospace">%s</text>',ry+6,isCur and safeColor or txtC,eta)
+    end
+    if wpCount>maxR then
+        svg[#svg+1] = stringf('<text x="%d" y="%d" fill="%s" font-size="13" font-family="monospace" text-anchor="middle">... +%d more</text>',SW/2,lbot-10,dimColor,wpCount-maxR)
+    end
+
+    -- Footer
+    local tgtN = route.tgt or (ap and ap.tgt) or "None"
+    svg[#svg+1] = stringf('<text x="40" y="%d" fill="%s" font-size="13" font-family="monospace">TARGET: %s</text>',SH-40,accentColor,esc(tgtN))
+    if route.saved then
+        svg[#svg+1] = stringf('<text x="%d" y="%d" fill="%s" font-size="12" font-family="monospace" text-anchor="end">SAVED: %d WP</text>',SW-40,SH-40,dimColor,route.savedCount or 0)
+    end
+    return svgClose(svg, pageIdx)
+end
+
+-- ═══════════════════════════════════════════
+-- ALERT CHECKS (run every tick)
+-- ═══════════════════════════════════════════
+local prevIntegrity = 100
+local prevDisabled = 0
+local prevContactIds = {}
+local prevThreatClose = 0
+
 local function checkDamageAlerts()
     local damage = safeDecode("T_damage")
     if not damage then return end
@@ -226,550 +794,64 @@ local function checkRecorderAlerts()
 end
 
 -- ═══════════════════════════════════════════
--- Data Collection (sent to screen via setScriptInput)
--- setScriptInput has a 1024-char limit, so only send data for the active page.
--- The render script outputs its current page number via setOutput().
+-- PAGE DISPATCHER
 -- ═══════════════════════════════════════════
-local function collectDataForPage(pg)
-    local data = {ts = system.getArkTime()}
-    if pg == 2 then
-        -- Radar page: contacts + pvp status
-        local radar = safeDecode("T_radar")
-        if radar and radar.list then
-            local lim = {}
-            for i = 1, mmin(#radar.list, 8) do lim[i] = radar.list[i] end
-            radar.list = lim
-        end
-        data.r = radar
-        local ship = safeDecode("T_ship")
-        if ship then data.s = {pvp = ship.pvp} end
-    elseif pg == 3 then
-        -- Damage page: element list
-        local damage = safeDecode("T_damage")
-        if damage and damage.list then
-            local lim = {}
-            for i = 1, mmin(#damage.list, 10) do lim[i] = damage.list[i] end
-            damage.list = lim
-        end
-        data.d = damage
-    elseif pg == 4 then
-        -- Recorder page: compact history arrays [t,s,a,v]
-        local flight = safeDecode("T_flight")
-        if flight then data.f = {time = flight.time} end
-        local hData = {}
-        local n = #history
-        if n > 0 then
-            local step = mmax(1, mfloor(n / 25))
-            for i = 1, n, step do
-                local p = history[i]
-                hData[#hData + 1] = {mfloor(p.t), mfloor((p.s or 0) + 0.5), mfloor((p.a or 0) + 0.5), mfloor((p.v or 0) + 0.5)}
-            end
-            local last = history[n]
-            if #hData == 0 or hData[#hData][1] ~= mfloor(last.t) then
-                hData[#hData + 1] = {mfloor(last.t), mfloor((last.s or 0) + 0.5), mfloor((last.a or 0) + 0.5), mfloor((last.v or 0) + 0.5)}
-            end
-        end
-        data.h = hData
-    elseif pg == 5 then
-        -- Route page: waypoints + AP status
-        data.rt = safeDecode("T_route")
-        local ap = safeDecode("T_ap")
-        if ap then data.a = {on = ap.on} end
-    else
-        -- Page 1 (Telemetry) or default
-        data.f = safeDecode("T_flight")
-        data.a = safeDecode("T_ap")
-        data.s = safeDecode("T_ship")
-        data.u = safeDecode("T_fuel")
-    end
-    return jencode(data)
+local renderers = {renderTelemetry, renderRadar, renderDamage, renderRecorder, renderRoute}
+
+local function renderPage(pageIdx)
+    local r = renderers[pageIdx]
+    if r then return r(pageIdx) end
+    return ""
 end
 
 -- ═══════════════════════════════════════════
--- RENDER SCRIPT (runs on screen unit)
+-- SCREEN CLICK NAVIGATION
+-- In screen > onMouseDown(x,y):  onScreenNav(1,x)
+-- In screen2 > onMouseDown(x,y): onScreenNav(2,x)
 -- ═══════════════════════════════════════════
-local RENDER_SCRIPT = [=[
--- ArchHUD Combined Display Render Script
--- Minimal JSON decoder
-local function J(s)
-  if not s or s=="" then return nil end
-  local i=1
-  local V
-  local function w()while i<=#s and s:byte(i)<=32 do i=i+1 end end
-  local function S()
-    i=i+1 local b={}
-    while true do
-      local c=s:sub(i,i)
-      if c=='"' then break
-      elseif c=='\\' then i=i+1;c=s:sub(i,i);if c=='n' then b[#b+1]='\n' elseif c=='t' then b[#b+1]='\t' else b[#b+1]=c end
-      else b[#b+1]=c end
-      i=i+1
+function onScreenNav(screenNum, x)
+    if screenNum == 1 then
+        if x > 0.5 then screen1Page = (screen1Page % pageCount) + 1
+        else screen1Page = ((screen1Page - 2) % pageCount) + 1 end
+        if screen then screen.setHTML(renderPage(screen1Page)) end
+    elseif screenNum == 2 and screen2 then
+        if x > 0.5 then screen2Page = (screen2Page % pageCount) + 1
+        else screen2Page = ((screen2Page - 2) % pageCount) + 1 end
+        screen2.setHTML(renderPage(screen2Page))
     end
-    i=i+1;return table.concat(b)
-  end
-  V=function()
-    w();local c=s:sub(i,i)
-    if c=='"' then return S()
-    elseif c=='{' then
-      i=i+1;w();local t={}
-      if s:sub(i,i)~='}' then
-        local k=S();w();i=i+1;t[k]=V()
-        while true do w();if s:sub(i,i)~=',' then break end;i=i+1;k=S();w();i=i+1;t[k]=V() end
-      end;w();i=i+1;return t
-    elseif c=='[' then
-      i=i+1;w();local t={}
-      if s:sub(i,i)~=']' then
-        t[1]=V();local n=1
-        while true do w();if s:sub(i,i)~=',' then break end;i=i+1;n=n+1;t[n]=V() end
-      end;w();i=i+1;return t
-    elseif c=='t' then i=i+4;return true
-    elseif c=='f' then i=i+5;return false
-    elseif c=='n' then i=i+4;return nil
-    else local j=i;if c=='-' then i=i+1 end;while i<=#s and s:sub(i,i):match('[%deE%.%+%-]') do i=i+1 end;return tonumber(s:sub(j,i-1))
-    end
-  end
-  local ok,r=pcall(V);return ok and r or nil
 end
-
--- Persistent state (globals survive between frames)
-page = page or 1
-dmgPg = dmgPg or 0
-dmgTmr = dmgTmr or 0
-local PAGES = 5
-local pgN = {"TELEMETRY","RADAR","DAMAGE","RECORDER","ROUTE"}
-
--- Resolution
-local rx, ry = getResolution()
-local hw = rx/2
-
--- Fonts (cached across frames via globals)
-fH = fH or loadFont("Play-Bold",14)
-fN = fN or loadFont("FiraMono",12)
-fL = fL or loadFont("FiraMono",18)
-fS = fS or loadFont("FiraMono",9)
-fXL = fXL or loadFont("FiraMono-Bold",24)
-
--- Parse input (cache to avoid re-parsing same data)
-local raw = getInput() or ""
-if raw ~= _lastRaw then _lastRaw = raw; _D = J(raw) end
-local D = _D or {}
-local f = D.f or {}
-local a = D.a or {}
-local s = D.s or {}
-local u = D.u or {}
-local r = D.r or {}
-local d = D.d or {}
-local rt = D.rt or {}
-local h = D.h or {}
-local ts = D.ts or 0
-
--- Click navigation
-local mx, my = getCursor()
-if getCursorPressed() and my < ry-22 and mx >= 0 then
-  if mx > hw then page = page%PAGES+1 else page = (page-2)%PAGES+1 end
-end
-
--- Layers
-local bg = createLayer()
-local L = createLayer()
-local ov = createLayer()
-
--- Background
-setBackgroundColor(0.047,0.063,0.086)
-
--- Stdlib
-local floor,fmt,min,max = math.floor,string.format,math.min,math.max
-
--- Colors (RGBA 0-1)
-local cA={0.51,0.88,1,1}     local cD={0.35,0.61,0.71,1}
-local cW={1,0.65,0,1}        local cR={1,0.24,0.24,1}
-local cS={0.24,1,0.47,1}     local cT={0.86,0.88,0.90,1}
-local cP={0.08,0.12,0.16,0.85} local cB={0.51,0.88,1,0.3}
-local cG={0.51,0.88,1,0.12}  local cSt={0.39,0.43,0.49,1}
-local cAm={1,0.75,0.20,1}    local cCu={1,0.86,0.20,1}
-
--- Helpers
-local function fc(l,c) setNextFillColor(l,c[1],c[2],c[3],c[4]) end
-local function sc(l,c) setNextStrokeColor(l,c[1],c[2],c[3],c[4]) end
-local function pnl(l,x,y,w,h) fc(l,cP);sc(l,cB);setNextStrokeWidth(l,1);addBoxRounded(l,x,y,w,h,4) end
-local function lbl(l,x,y,t) fc(l,cD);addText(l,fN,t,x,y) end
-local function val(l,x,y,t,c) fc(l,c or cT);addText(l,fL,t,x,y) end
-local function hdr(l,x,y,t) fc(l,cA);addText(l,fH,t,x,y) end
-local function stp(l,x,y,on,t)
-  if on then setNextFillColor(l,0.24,1,0.47,1) else setNextFillColor(l,0.24,0.27,0.31,0.8) end
-  addCircle(l,x,y,3)
-  fc(l,on and cA or cD);addText(l,fS,t,x+7,y-4)
-end
-local function br(l,x,y,w,h,pct,c)
-  pct=max(0,min(100,pct or 0))
-  setNextFillColor(l,0.16,0.20,0.24,0.8);addBoxRounded(l,x,y,w,h,2)
-  if pct>0 then fc(l,c or cA);addBoxRounded(l,x,y,max(1,floor(w*pct/100)),h,2) end
-end
-
--- Formatting
-local function fD(m)
-  if not m or m==0 then return "---" end
-  if m>200000 then return fmt("%.2f su",m/200000)
-  elseif m>10000 then return fmt("%.1f km",m/1000)
-  elseif m>1000 then return fmt("%.2f km",m/1000)
-  else return fmt("%.0f m",m) end
-end
-local function fT(sec)
-  if not sec or sec<=0 then return "---" end
-  local dd=floor(sec/86400) local hh=floor((sec%86400)/3600) local mm=floor((sec%3600)/60) local ss=floor(sec%60)
-  if dd>365 then return ">1y" elseif dd>0 then return fmt("%dd %dh",dd,hh)
-  elseif hh>0 then return fmt("%dh %dm",hh,mm) elseif mm>0 then return fmt("%dm %ds",mm,ss) else return fmt("%ds",ss) end
-end
-local function fS(mps) return fmt("%.0f km/h",(mps or 0)*3.6) end
-local function fMs(mps) mps=mps or 0;if mps>1000 then return fmt("%.1f km/s",mps/1000) end;return fmt("%.0f m/s",mps) end
-local function fA(m) m=m or 0;if m>100000 then return fmt("%.2f su",m/200000) elseif m>1000 then return fmt("%.1f km",m/1000) else return fmt("%.0f m",m) end end
-
--- Title bar
-local function titleBar(title,rtxt,rc)
-  setNextFillColor(bg,0.08,0.12,0.16,0.95);addBox(bg,0,0,rx,30)
-  fc(ov,cA);addText(ov,fH,title,8,7)
-  if rtxt then fc(ov,rc or cD);setNextTextAlign(ov,AlignH_Right,AlignV_Top);addText(ov,fN,rtxt,rx-8,10) end
-end
-
--- Freshness indicator
-local function fresh(l,x,y)
-  if f.time and ts>0 then
-    local age=ts-(f.time or 0)
-    local c=age<5 and cS or (age<15 and cW or cR)
-    local t=age<5 and "LIVE" or fmt("%.0fs AGO",age)
-    fc(l,c);addCircle(l,x,y+4,3);fc(l,c);addText(l,fS,t == nil and "" or ("DATA: "..t),x+8,y)
-  end
-end
-
--- No data screen
-local function noData(msg)
-  fc(L,cW);setNextTextAlign(L,AlignH_Center,AlignV_Middle);addText(L,fL,"AWAITING DATA",hw,ry/2-10)
-  fc(L,cD);setNextTextAlign(L,AlignH_Center,AlignV_Middle);addText(L,fN,msg or "",hw,ry/2+12)
-end
-
--- ═════════ PAGE 1: TELEMETRY ═════════
-local function pgTelemetry()
-  local pvp=s.pvp;titleBar("ARCHHUD TELEMETRY",pvp and "PVP ZONE" or "SAFE ZONE",pvp and cR or cS)
-  if not f.spd then noData("Link databank to same databank as ArchHUD seat");return end
-  local pw=hw-12;local x1,x2=6,hw+6;local y1=34
-  -- Flight panel
-  pnl(L,x1,y1,pw,165);hdr(L,x1+6,y1+6,"FLIGHT DATA")
-  local fy=y1+26;lbl(L,x1+6,fy,"SPEED");val(L,x1+62,fy,fS(f.spd));fc(L,cD);addText(L,fS,"("..fMs(f.spd)..")",x1+220,fy+4)
-  fy=fy+22;lbl(L,x1+6,fy,"ALT");val(L,x1+62,fy,fA(f.alt))
-  fy=fy+22;local vc=cT;if(f.vspd or 0)>10 then vc=cS elseif(f.vspd or 0)<-10 then vc=cW end
-  local vs=(f.vspd or 0)>=0 and "+" or "";lbl(L,x1+6,fy,"V-SPD");val(L,x1+62,fy,fmt("%s%.1f m/s",vs,f.vspd or 0),vc)
-  fy=fy+22;lbl(L,x1+6,fy,"ATMO");fc(L,cT);addText(L,fN,fmt("%.1f%%",f.atmo or 0),x1+62,fy)
-  lbl(L,x1+150,fy,"THR");fc(L,cT);addText(L,fN,fmt("%d%%",f.thr or 0),x1+200,fy)
-  fy=fy+20;stp(L,x1+6,fy,f.inA,"ATMO");stp(L,x1+75,fy,f.gear,"GEAR");stp(L,x1+140,fy,f.brk,"BRK");stp(L,x1+200,fy,f.near,"NEAR")
-  -- Autopilot panel
-  pnl(L,x2,y1,pw,165);hdr(L,x2+6,y1+6,"AUTOPILOT")
-  local ay=y1+26;local asc=a.on and cS or cD
-  lbl(L,x2+6,ay,"STATUS");fc(L,asc);addText(L,fH,a.on and "ENGAGED" or "OFF",x2+62,ay);ay=ay+20
-  lbl(L,x2+6,ay,"PHASE");fc(L,cT);addText(L,fN,a.stat or "---",x2+62,ay);ay=ay+18
-  lbl(L,x2+6,ay,"TARGET");fc(L,cT);addText(L,fN,a.tgt or "None",x2+62,ay);ay=ay+18
-  if a.dist and a.dist>0 then lbl(L,x2+6,ay,"DIST");fc(L,cT);addText(L,fN,fD(a.dist),x2+62,ay);ay=ay+18 end
-  if a.bDist and a.bDist>0 then lbl(L,x2+6,ay,"BRAKE");fc(L,cW);addText(L,fN,fD(a.bDist),x2+62,ay);ay=ay+18 end
-  ay=ay+4;stp(L,x2+6,ay,a.ah,"ALT");stp(L,x2+65,ay,a.tb,"T+B");stp(L,x2+130,ay,a.orb,"ORB");stp(L,x2+190,ay,a.re,"RE")
-  -- Fuel panel
-  local by=204
-  pnl(L,x1,by,pw,175);hdr(L,x1+6,by+6,"FUEL")
-  local bY,bW,bH,bSp=by+28,pw-80,10,38
-  local function fuelRow(yy,data,lb)
-    if not data then return end;lbl(L,x1+6,yy,lb)
-    local bc=cA;if data.pct<10 then bc=cR elseif data.pct<25 then bc=cW end
-    br(L,x1+6,yy+14,bW,bH,data.pct,bc)
-    fc(L,cT);setNextTextAlign(L,AlignH_Right,AlignV_Top);addText(L,fS,fmt("%d%%",data.pct),x1+pw-8,yy+13)
-  end
-  if u.atmo then fuelRow(bY,u.atmo,fmt("ATMO [%d]",u.atmo.count or 0));bY=bY+bSp end
-  if u.space then fuelRow(bY,u.space,fmt("SPACE [%d]",u.space.count or 0));bY=bY+bSp end
-  if u.rocket then fuelRow(bY,u.rocket,fmt("RCKT [%d]",u.rocket.count or 0)) end
-  -- Ship panel
-  pnl(L,x2,by,pw,175);hdr(L,x2+6,by+6,"SHIP STATUS")
-  local sy=by+28
-  if s.shld and s.shld>=0 then
-    local sc2=cA;if s.shld<25 then sc2=cR elseif s.shld<50 then sc2=cW end
-    lbl(L,x2+6,sy,"SHIELD");fc(L,sc2);addText(L,fL,fmt("%d%%",s.shld),x2+62,sy)
-  else lbl(L,x2+6,sy,"SHIELD");fc(L,cD);addText(L,fN,"N/A",x2+62,sy) end
-  lbl(L,x2+180,sy,"MASS");fc(L,cT)
-  local ms=(f.mass or 0)>1000 and fmt("%.1f t",(f.mass or 0)/1000) or fmt("%d kg",f.mass or 0)
-  addText(L,fN,ms,x2+230,sy)
-  sy=sy+30;sc(L,cB);setNextStrokeWidth(L,1);addLine(L,x2+4,sy-6,x2+pw-4,sy-6)
-  hdr(L,x2+6,sy,"ODOMETER");sy=sy+20
-  lbl(L,x2+6,sy,"DIST");fc(L,cT);addText(L,fN,fD(s.odo),x2+50,sy)
-  lbl(L,x2+180,sy,"TIME");fc(L,cT);addText(L,fN,fT(s.ft),x2+220,sy)
-  fresh(L,6,ry-36)
-end
-
--- ═════════ PAGE 2: RADAR ═════════
-local rsLbl={[1]="OPERATIONAL",[0]="BROKEN",[-1]="JAMMED",[-2]="OBSTRUCTED",[-3]="IN USE",[-4]="NO RADAR"}
-local rsClr={[1]=cS,[0]=cR,[-1]=cR,[-2]=cW,[-3]=cW,[-4]=cD}
-local function pgRadar()
-  local pvp=(s.pvp) or (r.pvp);titleBar("ARCHHUD RADAR",pvp and "PVP ZONE" or "SAFE ZONE",pvp and cR or cS)
-  if not r.state and not r.list then noData("No radar telemetry from databank");return end
-  -- Status bar
-  local st=r.state or -4;local stL=rsLbl[st] or "?";local stC=rsClr[st] or cD
-  setNextFillColor(L,0.08,0.12,0.16,0.9);addBox(L,0,32,rx,26)
-  lbl(L,8,36,"RADAR");fc(L,stC);addCircle(L,72,42,4);fc(L,stC);addText(L,fN,stL,82,36)
-  local cc=r.count or 0;lbl(L,260,36,"CONTACTS");fc(L,cc>0 and cA or cD);addText(L,fH,tostring(cc),340,36)
-  if pvp and r.list then
-    local th=0;for _,c in ipairs(r.list) do if not c.f and c.k=="Dynamic" then th=th+1 end end
-    if th>0 then lbl(L,390,36,"THREATS");fc(L,cR);addText(L,fH,tostring(th),460,36) end
-  end
-  -- Contact table
-  local tY,rH,mR=62,22,22
-  pnl(L,4,tY,rx-8,ry-tY-28)
-  local hY=tY+8
-  fc(L,cA);addText(L,fS,"#",10,hY);fc(L,cA);addText(L,fS,"NAME",36,hY);fc(L,cA);addText(L,fS,"DISTANCE",460,hY)
-  fc(L,cA);addText(L,fS,"SIZE",600,hY);fc(L,cA);addText(L,fS,"TYPE",680,hY);fc(L,cA);addText(L,fS,"STATUS",800,hY)
-  sc(L,cB);setNextStrokeWidth(L,1);addLine(L,8,hY+12,rx-8,hY+12)
-  local cts=r.list or {};local rY=hY+16;local rd=0
-  if #cts==0 then
-    fc(L,cD);setNextTextAlign(L,AlignH_Center,AlignV_Top);addText(L,fN,st==1 and "NO CONTACTS" or ("RADAR "..stL),hw,rY+30)
-  else
-    table.sort(cts,function(a2,b2) return(a2.d or 0)<(b2.d or 0) end)
-    for i,ct in ipairs(cts) do
-      if rd>=mR then break end
-      local yy=rY+rd*rH;local nc=cA
-      if ct.f then nc=cS elseif ct.k=="Static" then nc=cSt
-      elseif pvp then nc=ct.d<2000 and cR or cAm end
-      if rd%2==0 then setNextFillColor(L,0.12,0.16,0.22,0.4);addBox(L,6,yy-2,rx-12,rH-2) end
-      fc(L,cD);addText(L,fS,tostring(i),10,yy)
-      local nm=ct.n or "?";if #nm>30 then nm=nm:sub(1,28)..".." end
-      fc(L,nc);addText(L,fN,nm,36,yy)
-      local dc=cT;if pvp and not ct.f and ct.k=="Dynamic" then dc=ct.d<2000 and cR or(ct.d<10000 and cW or dc) end
-      fc(L,dc);addText(L,fN,fD(ct.d or 0),460,yy)
-      fc(L,cD);addText(L,fS,ct.s or "?",600,yy);fc(L,ct.k=="Dynamic" and cA or cSt);addText(L,fS,ct.k or "?",680,yy)
-      fc(L,ct.f and cS or cD);addText(L,fS,ct.f and "FRIENDLY" or "UNKNOWN",800,yy)
-      rd=rd+1
-    end
-    if #cts>mR then fc(L,cD);setNextTextAlign(L,AlignH_Center,AlignV_Top);addText(L,fS,fmt("... +%d more",#cts-mR),hw,rY+mR*rH+4) end
-  end
-  fresh(L,6,ry-36)
-end
-
--- ═════════ PAGE 3: DAMAGE ═════════
-local function igClr(pct)
-  pct=max(0,min(100,pct))
-  if pct>=50 then local t2=(pct-50)/50;return{(255-195*t2)/255,1,120*t2/255,1}
-  else local t2=pct/50;return{1,(60+195*t2)/255,(60-60*t2)/255,1} end
-end
-local function pgDamage()
-  titleBar("ARCHHUD DAMAGE REPORT")
-  if not d.pct then noData("Damage telemetry published every 10s while seated");return end
-  local pct=d.pct or 0;local ic=igClr(pct)
-  fc(L,ic);setNextTextAlign(L,AlignH_Center,AlignV_Top);addText(L,fXL,fmt("%.1f%%",pct),hw,40)
-  fc(L,cD);setNextTextAlign(L,AlignH_Center,AlignV_Top);addText(L,fS,"SHIP INTEGRITY",hw,68)
-  -- Bar
-  local bx,bY2,bW2,bH2=10,82,rx-20,14
-  br(L,bx,bY2,bW2,bH2,pct,ic);sc(L,cB);setNextStrokeWidth(L,1);addBoxRounded(L,bx,bY2,bW2,bH2,2)
-  fc(L,cD);setNextTextAlign(L,AlignH_Center,AlignV_Top);addText(L,fS,fmt("%d damaged | %d disabled | %d total",d.dmg or 0,d.off or 0,d.tot or 0),hw,100)
-  -- Element list
-  local lT,lB=116,ry-28;pnl(L,4,lT,rx-8,lB-lT)
-  local list=d.list
-  if not list or #list==0 then
-    fc(L,cS);setNextTextAlign(L,AlignH_Center,AlignV_Middle);addText(L,fH,"ALL SYSTEMS OPERATIONAL",hw,(lT+lB)/2)
-  else
-    local hdY2=lT+8
-    fc(L,cD);addText(L,fS,"ELEMENT",8,hdY2);fc(L,cD);addText(L,fS,"TYPE",300,hdY2)
-    fc(L,cD);addText(L,fS,"HEALTH",520,hdY2);fc(L,cD);addText(L,fS,"HP",800,hdY2)
-    sc(L,cB);setNextStrokeWidth(L,1);addLine(L,6,hdY2+12,rx-6,hdY2+12)
-    local rowH2=28;local cTop=hdY2+16;local avail=lB-cTop-6;local pp=max(1,floor(avail/rowH2))
-    dmgTmr=dmgTmr+1;if dmgTmr>15 then dmgTmr=0;dmgPg=dmgPg+1 end
-    local tPages=max(1,math.ceil(#list/pp));local pg2=dmgPg%tPages
-    local sI=pg2*pp+1;local eI=min(sI+pp-1,#list);local ey=cTop
-    for i=sI,eI do
-      local el=list[i];if el then
-        local ep=el.mhp>0 and(el.hp/el.mhp*100) or 0;local dead=el.hp<=0 or el.off
-        local rc=dead and cR or(ep>=50 and cW or {1,0.51,0.12,1})
-        local nm=(el.n or "?"):sub(1,22);local et=(el.t or ""):sub(1,18)
-        fc(L,rc);addText(L,fN,nm,8,ey);fc(L,cD);addText(L,fS,et,300,ey)
-        br(L,520,ey+2,240,8,ep,rc)
-        if dead then fc(L,cR);addText(L,fS,"DESTROYED",800,ey)
-        else fc(L,cD);addText(L,fS,fmt("%d/%d",el.hp,el.mhp),800,ey) end
-        ey=ey+rowH2
-      end
-    end
-    if tPages>1 then fc(L,cD);setNextTextAlign(L,AlignH_Right,AlignV_Top);addText(L,fS,fmt("PAGE %d/%d",pg2+1,tPages),rx-10,lB-2) end
-  end
-end
-
--- ═════════ PAGE 4: FLIGHT RECORDER ═════════
-local function drawChart(pY,pH,vals,n,color,lab,fmtL,fmtC,showZero)
-  local pX,pW=60,rx-120;local pX2=pX+pW;local plY,plH=pY+26,pH-32;local infoX=rx-100
-  pnl(L,4,pY,rx-8,pH);hdr(L,8,pY+6,lab)
-  if n==0 then fc(L,cD);setNextTextAlign(L,AlignH_Center,AlignV_Middle);addText(L,fS,"NO DATA",hw,pY+pH/2);return end
-  local vn,vx=vals[1],vals[1]
-  for i=2,n do if vals[i]<vn then vn=vals[i] end;if vals[i]>vx then vx=vals[i] end end
-  if showZero then if vn>0 then vn=0 end;if vx<0 then vx=0 end end
-  local rng=vx-vn;if rng<0.1 then local ct=(vn+vx)/2;vn=ct-1;vx=ct+1;rng=2 else vn=vn-rng*0.08;vx=vx+rng*0.08;rng=vx-vn end
-  -- Grid
-  for i=0,4 do
-    local fr=i/4;local gy=plY+plH-fr*plH;local gv=vn+fr*rng
-    sc(L,cG);setNextStrokeWidth(L,0.5);addLine(L,pX,gy,pX2,gy)
-    fc(L,cD);setNextTextAlign(L,AlignH_Right,AlignV_Middle);addText(L,fS,fmtL(gv),pX-4,gy)
-  end
-  -- Zero line
-  if showZero and vn<0 and vx>0 then
-    local zy=plY+plH-((0-vn)/rng)*plH
-    sc(L,{1,1,1,0.3});setNextStrokeWidth(L,1);addLine(L,pX,zy,pX2,zy)
-  end
-  -- Data line
-  local tS,tE=h[1][1],h[n][1];local tR=tE-tS;if tR<1 then tR=1 end
-  for i=2,n do
-    local x1f=(h[i-1][1]-tS)/tR;local y1f=(vals[i-1]-vn)/rng
-    local x2f=(h[i][1]-tS)/tR;local y2f=(vals[i]-vn)/rng
-    sc(L,color);setNextStrokeWidth(L,2)
-    addLine(L,pX+x1f*pW,plY+plH-y1f*plH,pX+x2f*pW,plY+plH-y2f*plH)
-  end
-  -- Current value dot
-  local ex=pX+pW;local ey=plY+plH-((vals[n]-vn)/rng)*plH
-  fc(L,color);addCircle(L,ex,ey,3)
-  -- Info
-  fc(L,cD);addText(L,fS,"NOW",infoX,pY+6)
-  fc(L,color);addText(L,fH,fmtC(vals[n]),infoX,pY+18)
-end
-local function pgRecorder()
-  local n=#h;titleBar("ARCHHUD FLIGHT RECORDER")
-  if n>0 and ts-(h[n][1] or 0)<30 then
-    fc(ov,cR);addCircle(ov,rx-100,12,4)
-    fc(ov,cR);addText(ov,fS,"REC",rx-92,7)
-    fc(ov,cD);addText(ov,fS,fmt("%d pts",n),rx-60,7)
-  end
-  local speeds,alts,vspeeds={},{},{}
-  for i=1,n do speeds[i]=h[i][2]*3.6;alts[i]=h[i][3];vspeeds[i]=h[i][4] end
-  local cH=floor((ry-80)/3)
-  drawChart(34,cH,speeds,n,cA,"SPEED (km/h)",
-    function(v) return v>10000 and fmt("%.1fk",v/1000) or fmt("%.0f",v) end,
-    function(v) return fmt("%.0f km/h",v) end,false)
-  drawChart(38+cH,cH,alts,n,cS,"ALTITUDE",
-    function(v) return fA(v) end,function(v) return fA(v) end,false)
-  drawChart(42+cH*2,cH,vspeeds,n,cW,"V-SPEED (m/s)",
-    function(v) return fmt("%.1f",v) end,
-    function(v) return fmt("%s%.1f",v>=0 and "+" or "",v) end,true)
-  -- Duration
-  if n>0 then
-    local dur=ts-h[1][1]
-    local dt=dur>3600 and fmt("%.1fh recorded",dur/3600) or(dur>60 and fmt("%dm recorded",floor(dur/60)) or fmt("%ds recorded",floor(dur)))
-    fc(L,cD);setNextTextAlign(L,AlignH_Right,AlignV_Top);addText(L,fS,dt,rx-8,ry-34)
-  end
-  fresh(L,6,ry-36)
-end
-
--- ═════════ PAGE 5: ROUTE PLANNER ═════════
-local function pgRoute()
-  titleBar("ARCHHUD ROUTE PLANNER")
-  if not rt.active and not rt.wps then
-    if not rt.count then noData("Route telemetry published every 3s while seated");return end
-    pnl(L,10,50,rx-20,100)
-    fc(L,cD);setNextTextAlign(L,AlignH_Center,AlignV_Middle);addText(L,fH,"NO ACTIVE ROUTE",hw,85)
-    fc(L,{0.51,0.88,1,0.5});setNextTextAlign(L,AlignH_Center,AlignV_Middle);addText(L,fS,"Use ALT+SHIFT+8 to add waypoints",hw,108)
-    if rt.saved and rt.savedCount and rt.savedCount>0 then
-      fc(L,cS);setNextTextAlign(L,AlignH_Center,AlignV_Middle);addText(L,fS,fmt("Saved route: %d waypoints",rt.savedCount),hw,125)
-    end
-    return
-  end
-  local wps=rt.wps or {};local wpc=rt.count or #wps;local prog=rt.progress or 0;local spd=rt.spd or 0
-  -- Progress bar
-  pnl(L,4,34,rx-8,60)
-  hdr(L,8,38,"ROUTE");fc(L,cA);addText(L,fH,fmt("%.1f%%",prog),60,38)
-  local pbX,pbY3,pbW3,pbH3=8,56,rx-16,12
-  br(L,pbX,pbY3,pbW3,pbH3,prog,cA);sc(L,cB);setNextStrokeWidth(L,1);addBoxRounded(L,pbX,pbY3,pbW3,pbH3,2)
-  -- Stats row
-  local sY2=74
-  lbl(L,8,sY2,"TOTAL");fc(L,cA);addText(L,fS,fD(rt.totalDist),50,sY2)
-  lbl(L,180,sY2,"LEFT");fc(L,cW);addText(L,fS,fD(rt.remainDist),210,sY2)
-  lbl(L,360,sY2,"ETA");fc(L,cS);addText(L,fS,fT(rt.remainEta),390,sY2)
-  lbl(L,520,sY2,"SPD");fc(L,cA);addText(L,fS,fS(spd),550,sY2)
-  lbl(L,680,sY2,"WP");fc(L,cA);addText(L,fS,tostring(wpc),700,sY2)
-  local apOn=a.on;lbl(L,780,sY2,"AP");fc(L,apOn and cS or cD);addText(L,fS,apOn and "ON" or "OFF",800,sY2)
-  -- Waypoint list
-  local ltop=98;pnl(L,4,ltop,rx-8,ry-ltop-28)
-  local hdY3=ltop+8
-  fc(L,cA);addText(L,fS,"#",12,hdY3);fc(L,cA);addText(L,fS,"WAYPOINT",40,hdY3);fc(L,cA);addText(L,fS,"PLANET",430,hdY3)
-  fc(L,cA);addText(L,fS,"LEG",570,hdY3);fc(L,cA);addText(L,fS,"DIST",680,hdY3);fc(L,cA);addText(L,fS,"ETA",820,hdY3)
-  sc(L,cB);setNextStrokeWidth(L,1);addLine(L,8,hdY3+12,rx-8,hdY3+12)
-  local rowH3=30;local rSY=hdY3+16;local maxR2=floor((ry-28-rSY-6)/rowH3)
-  for i=1,min(wpc,maxR2) do
-    local wp=wps[i];if not wp then break end
-    local yy=rSY+(i-1)*rowH3;local cur=wp.cur
-    local nc,tc=cur and cCu or{0.51,0.88,1,0.5},cur and cT or cD
-    if cur then setNextFillColor(L,1,0.86,0.20,0.06);addBox(L,6,yy-4,rx-12,rowH3-2) end
-    -- Node
-    if cur then fc(L,cCu);addCircle(L,20,yy+4,7);setNextFillColor(L,0.05,0.06,0.09,1);addCircle(L,20,yy+4,4)
-      fc(L,cCu);setNextTextAlign(L,AlignH_Center,AlignV_Middle);addText(L,fS,tostring(i),20,yy+4)
-    else fc(L,nc);addCircle(L,20,yy+4,5);fc(L,nc);setNextTextAlign(L,AlignH_Center,AlignV_Middle);addText(L,fS,tostring(i),20,yy+4) end
-    if i<wpc and i<maxR2 then sc(L,{0.51,0.88,1,0.15});setNextStrokeWidth(L,1);addLine(L,20,yy+12,20,yy+rowH3-4) end
-    local nm=(wp.n or "?"):sub(1,28);fc(L,nc);addText(L,fN,nm,40,yy)
-    if cur then fc(L,cCu);addText(L,fS,"CURRENT TARGET",40,yy+14) end
-    fc(L,tc);addText(L,fS,wp.p or "",430,yy)
-    fc(L,tc);addText(L,fS,fD(wp.leg),570,yy)
-    fc(L,cur and cCu or tc);addText(L,fS,fD(wp.d),680,yy)
-    local eta="---";if spd>1 and wp.d and wp.d>0 then eta=fT(wp.d/spd) end
-    fc(L,cur and cS or tc);addText(L,fS,eta,820,yy)
-  end
-  if wpc>maxR2 then fc(L,cD);setNextTextAlign(L,AlignH_Center,AlignV_Top);addText(L,fS,fmt("... +%d more",wpc-maxR2),hw,rSY+maxR2*rowH3+4) end
-end
-
--- Page dispatch (pcall to surface errors on screen)
-local pages={pgTelemetry,pgRadar,pgDamage,pgRecorder,pgRoute}
-if pages[page] then
-  local ok,err=pcall(pages[page])
-  if not ok then
-    local eL=createLayer()
-    setNextFillColor(eL,1,0.2,0.2,1);setNextTextAlign(eL,AlignH_Center,AlignV_Middle)
-    addText(eL,fN,"ERROR: "..tostring(err),hw,ry/2)
-  end
-end
-
--- Navigation bar
-local ny=ry-18
-setNextFillColor(bg,0.06,0.08,0.10,0.9);addBox(bg,0,ry-22,rx,22)
-setNextFillColor(ov,cA[1],cA[2],cA[3],0.35);addText(ov,fN,"<",8,ny-4)
-setNextFillColor(ov,cA[1],cA[2],cA[3],0.35);setNextTextAlign(ov,AlignH_Right,AlignV_Top);addText(ov,fN,">",rx-8,ny-4)
-fc(ov,cD);setNextTextAlign(ov,AlignH_Center,AlignV_Top);addText(ov,fS,fmt("%s  %d/%d",pgN[page] or "?",page,PAGES),hw,ny-2)
-local dotX=hw-(PAGES*7)
-for i=1,PAGES do
-  if i==page then fc(ov,cA) else setNextFillColor(ov,0.24,0.27,0.31,0.6) end
-  addCircle(ov,dotX+i*14,ny+10,2)
-end
-
-setOutput(tostring(page))
-requestAnimationFrame(15)
-]=]
 
 -- ═══════════════════════════════════════════
 -- TIMER CALLBACK
+-- In unit > onTimer(timerId):  onBoardTick(timerId)
 -- ═══════════════════════════════════════════
 function onBoardTick(timerId)
     if timerId == "refresh" then
-        -- Flight recorder
+        -- Flight recorder snapshots
         recorderTicks = recorderTicks + 1
         if recorderTicks >= RECORDER_TICKS then
             recordSnapshot()
             recorderTicks = 0
         end
-        -- Alerts
+        -- Damage page auto-advances element list
+        damageListPage = damageListPage + 1
+        -- Alert checks
         checkDamageAlerts()
         checkRadarAlerts()
         checkRecorderAlerts()
-        -- Push page-specific data to each screen (1024 char input limit)
-        if screen and db then
-            local pg = tonumber(screen.getScriptOutput()) or 1
-            screen.setScriptInput(collectDataForPage(pg))
-        end
-        if screen2 and db then
-            local pg = tonumber(screen2.getScriptOutput()) or 1
-            screen2.setScriptInput(collectDataForPage(pg))
-        end
+        -- Refresh current page on each screen
+        if screen and db then screen.setHTML(renderPage(screen1Page)) end
+        if screen2 and db then screen2.setHTML(renderPage(screen2Page)) end
     end
 end
 
 -- ═══════════════════════════════════════════
 -- STOP HANDLER
+-- In unit > onStop:  onBoardStop()
 -- ═══════════════════════════════════════════
 function onBoardStop()
-    if screen then screen.setRenderScript("") end
-    if screen2 then screen2.setRenderScript("") end
+    if screen then screen.setHTML("") end
+    if screen2 then screen2.setHTML("") end
 end
 
 -- ═══════════════════════════════════════════
@@ -784,14 +866,8 @@ if not screen then
     return
 end
 loadHistory()
--- Set render scripts
-screen.setRenderScript(RENDER_SCRIPT)
-if screen2 then screen2.setRenderScript(RENDER_SCRIPT) end
--- Start data timer
 unit.setTimer("refresh", TICK_INTERVAL)
--- Push initial data (default to page 1)
-local initData = collectDataForPage(1)
-screen.setScriptInput(initData)
-if screen2 then screen2.setScriptInput(initData) end
 local mode = screen2 and "2 screens" or "1 screen"
-system.print(stringf("ArchHUD Combined Display started. 5 pages, %s. Click screen to navigate.", mode))
+system.print(stringf("ArchHUD Combined Display started. %d pages, %s. Click screen to navigate.", pageCount, mode))
+screen.setHTML(renderPage(screen1Page))
+if screen2 then screen2.setHTML(renderPage(screen2Page)) end
