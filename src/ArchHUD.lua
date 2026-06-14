@@ -197,6 +197,32 @@ VERSION_NUMBER = 2.201
 -- DU Events written for wrap and minimization. Written by Dimencia and Archaegeo. Optimization and Automation of scripting by ChronosWS  Linked sources where appropriate, most have been modified.
     function script.onStart()
         PROGRAM.onStart()
+
+        -- Lightweight validation/clamping of user-exported settings. Runs AFTER
+        -- PROGRAM.onStart(), which is where saved values are loaded from the databank.
+        -- These globals are re-read each frame by the flight/HUD loops, so clamping
+        -- here takes effect on the next tick. Guards against out-of-range saved values
+        -- that would otherwise destabilize flight or rendering.
+        if YawStallAngle < 0 or YawStallAngle > 90 then
+            system.print("ArchHUD: YawStallAngle out of range (0-90), resetting to 35.")
+            YawStallAngle = 35
+        end
+        if PitchStallAngle < 0 or PitchStallAngle > 90 then
+            system.print("ArchHUD: PitchStallAngle out of range (0-90), resetting to 35.")
+            PitchStallAngle = 35
+        end
+        if circleRad ~= 0 and (circleRad < 50 or circleRad > 500) then
+            system.print("ArchHUD: circleRad out of recommended range (50-500), clamping.")
+            circleRad = math.max(50, math.min(500, circleRad))
+        end
+        if hudTickRate < 0.01 or hudTickRate > 1 then
+            system.print("ArchHUD: hudTickRate out of range (0.01-1), resetting to 0.0666667.")
+            hudTickRate = 0.0666667
+        end
+        if AtmoSpeedLimit < 100 or AtmoSpeedLimit > 2000 then
+            system.print("ArchHUD: AtmoSpeedLimit out of range (100-2000), resetting to 1175.")
+            AtmoSpeedLimit = 1175
+        end
     end
 
     function script.onOnStop()

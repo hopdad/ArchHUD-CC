@@ -1,5 +1,14 @@
 # Changelog
 
+## Version 2.201 -- The Third Verse Compatibility & Modern Rendering (Feb 2026)
+
+- Rewrote CombinedDisplay to use the modern `setRenderScript` API for reliable and proper screen rendering on boards and HUD elements.
+- Fixed deprecated event signatures in board JSON configuration files.
+- Made the release workflow more resilient to duplicate version tags.
+- Ongoing maintenance and adaptations specifically for **The Third Verse** environment while preserving full compatibility with core ArchHUD features.
+
+See the GitHub Releases page for the packaged `ArchHUD.zip`.
+
 ## Version History
 
 ### Version 2.105 -- MyDU Update and Bug Fixes
