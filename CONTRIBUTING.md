@@ -27,7 +27,6 @@ A detailed list of recommendations (code quality, performance, documentation, te
 
 Examples of high-value areas:
 - Reduce duplication in saveable variable registration.
-- Centralize magic numbers into a Constants module.
 - Add lightweight validation for exported settings.
 - Expand tests/ coverage for math and autopilot logic.
 - Enhance CI with linting.

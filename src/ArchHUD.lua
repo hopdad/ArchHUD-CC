@@ -1,15 +1,9 @@
 require 'src.slots'
-require 'src.Constants'  -- Grok suggestion: centralized constants for maintainability
 
 Nav = Navigator.new(system, core, unit)
 
 -- Accessor factory for databank save/load system
 local function _A(n)return{set=function(i)_G[n]=i end,get=function()return _G[n]end}end
-
--- Helper to register saveable variables (Grok suggestion: reduces duplication)
-local function registerSaveable(tbl, varName, accessor)
-    tbl[varName] = accessor
-end
 
 -- User variables. Must be global to work with databank system
     useTheseSettings = false --export:  Change this to true to override databank saved settings
@@ -61,23 +55,23 @@ end
 
     -- Ship Handling variables
     -- NOTE: saveableVariablesHandling below must contain any Ship Handling variables that needs to be saved/loaded from databank system
-        YawStallAngle = Constants.YAW_STALL_ANGLE_DEFAULT --export: (Default: 35) Angle at which the ship stalls when yawing, determine by experimentation. Higher allows faster AP Bank turns.
-        PitchStallAngle = Constants.PITCH_STALL_ANGLE_DEFAULT --export: (Default: 35) Angle at which the ship stalls when pitching, determine by experimentation.
-        brakeLandingRate = Constants.BRAKE_LANDING_RATE --export: (Default: 30) Max loss of altitude speed in m/s when doing a brake landing. 30 is safe for almost all ships.
-        MaxPitch = Constants.MAX_PITCH --export: (Default: 30) Maximum allowed pitch during takeoff and altitude changes while in altitude hold. You can set higher or lower depending on your ships capabilities.
-        ReEntryPitch = Constants.REENTRY_PITCH_DEFAULT --export: (Default: -30) Maximum downward pitch allowed during freefall portion of re-entry.
-        AutopilotSpaceDistance = Constants.AUTOPILOT_SPACE_DISTANCE --export: (Default: 5000) Target distance AP will try to stop from a custom waypoint in space.  Good ships can lower this value a lot.
-        TargetOrbitRadius = Constants.TARGET_ORBIT_RADIUS --export: (Default: 1.3) How tight you want to orbit the planet at end of autopilot.  The smaller the value the tighter the orbit.  Value is multiple of Atmospheric Height
-        LowOrbitHeight = Constants.LOW_ORBIT_HEIGHT --export: (Default: 2000) Height of Orbit above top of atmosphere when using Alt-4-4 same planet autopilot or alt-6-6 in space.
-        AtmoSpeedLimit = Constants.ATMO_SPEED_LIMIT --export: (Default: 1175) Speed limit in Atmosphere in km/h. AtmoSpeedAssist will cause ship to throttle back when this speed is reached.
-        SpaceSpeedLimit = Constants.SPACE_SPEED_LIMIT --export: (Default: 66000) Space speed limit in KM/H. If you hit this speed and are NOT in active autopilot, engines will turn off to prevent using all fuel (66000 means they wont turn off)
+        YawStallAngle = 35 --export: (Default: 35) Angle at which the ship stalls when yawing, determine by experimentation. Higher allows faster AP Bank turns.
+        PitchStallAngle = 35 --export: (Default: 35) Angle at which the ship stalls when pitching, determine by experimentation.
+        brakeLandingRate = 30 --export: (Default: 30) Max loss of altitude speed in m/s when doing a brake landing. 30 is safe for almost all ships.
+        MaxPitch = 30 --export: (Default: 30) Maximum allowed pitch during takeoff and altitude changes while in altitude hold. You can set higher or lower depending on your ships capabilities.
+        ReEntryPitch = -30 --export: (Default: -30) Maximum downward pitch allowed during freefall portion of re-entry.
+        AutopilotSpaceDistance = 5000 --export: (Default: 5000) Target distance AP will try to stop from a custom waypoint in space.  Good ships can lower this value a lot.
+        TargetOrbitRadius = 1.3 --export: (Default: 1.3) How tight you want to orbit the planet at end of autopilot.  The smaller the value the tighter the orbit.  Value is multiple of Atmospheric Height
+        LowOrbitHeight = 2000 --export: (Default: 2000) Height of Orbit above top of atmosphere when using Alt-4-4 same planet autopilot or alt-6-6 in space.
+        AtmoSpeedLimit = 1175 --export: (Default: 1175) Speed limit in Atmosphere in km/h. AtmoSpeedAssist will cause ship to throttle back when this speed is reached.
+        SpaceSpeedLimit = 66000 --export: (Default: 66000) Space speed limit in KM/H. If you hit this speed and are NOT in active autopilot, engines will turn off to prevent using all fuel (66000 means they wont turn off)
         AutoTakeoffAltitude = 1000 --export: (Default: 1000) How high above your ground height AutoTakeoff tries to put you
         TargetHoverHeight = 50 --export: (Default: 50) Hover height above ground when G used to lift off, 50 is above all max hover heights.
         LandingGearGroundHeight = 0 --export: (Default: 0) Set to AGL when on ground. Will help prevent ship landing on ground then bouncing back up to landing gear height.
-        ReEntryHeight = Constants.REENTRY_HEIGHT --export: (Default: 100000) Height above a planets maximum surface altitude used for re-entry, if height exceeds min space engine height, then 11% atmo is used instead. (100000 means 11% is used)
+        ReEntryHeight = 100000 --export: (Default: 100000) Height above a planets maximum surface altitude used for re-entry, if height exceeds min space engine height, then 11% atmo is used instead. (100000 means 11% is used)
         MaxGameVelocity = -1.00 --export: (Default: -1.00) Max speed for your autopilot in m/s.  If -1 then when you sit down it will set to actualy max speed.
         AutopilotInterplanetaryThrottle = 1 --export: (Default: 1) How much throttle, 0.0 to 1, you want it to use when in autopilot to another planet while reaching MaxGameVelocity
-        warmup = Constants.WARMUP_XL --export: (Default: 32) How long it takes your space engines to warmup. Basic Space Engines, from XS to XL: 0.25,1,4,16,32. Only affects turn and burn brake calculations.
+        warmup = 32 --export: (Default: 32) How long it takes your space engines to warmup. Basic Space Engines, from XS to XL: 0.25,1,4,16,32. Only affects turn and burn brake calculations.
         fuelTankHandlingAtmo = 0 --export: (Default: 0) For accurate estimates on unslotted tanks, set this to the fuel tank handling level of the person who placed the tank. Ignored for slotted tanks.
         fuelTankHandlingSpace = 0 --export: (Default: 0) For accurate estimates on unslotted tanks, set this to the fuel tank handling level of the person who placed the tank. Ignored for slotted tanks.
         fuelTankHandlingRocket = 0 --export: (Default: 0) For accurate estimates on unslotted tanks, set this to the fuel tank handling level of the person who placed the tank. Ignored for slotted tanks.
@@ -102,7 +96,7 @@ end
     -- NOTE: saveableVariablesHud below must contain any HUD Positioning variables that needs to be saved/loaded from databank system
         ResolutionX = 1920 --export: (Default: 1920) Does not need to be set to same as game resolution. You can set 1920 on a 2560 to get larger resolution
         ResolutionY = 1080 --export: (Default: 1080) Does not need to be set to same as game resolution. You can set 1080 on a 1440 to get larger resolution
-        circleRad = Constants.CIRCLE_RAD_DEFAULT --export: (Default: 400) The size of the artifical horizon circle, recommended minimum 100, maximum 400. Looks different > 200. Set to 0 to remove.
+        circleRad = 400 --export: (Default: 400) The size of the artifical horizon circle, recommended minimum 100, maximum 400. Looks different > 200. Set to 0 to remove.
         SafeR = 130 --export: (Default: 130) Primary HUD color
         SafeG = 224 --export: (Default: 224) Primary HUD color
         SafeB = 255 --export: (Default: 255) Primary HUD color
@@ -142,8 +136,8 @@ end
         -- NOTE: saveableVariablesPhysics below must contain any Ship flight physics variables that needs to be saved/loaded from databank system
             speedChangeLarge = 5.0 --export: (Default: 5) The speed change that occurs when you tap speed up/down or mousewheel, default is 5%
             speedChangeSmall = 1.0 --export: (Default: 1) the speed change that occurs while you hold speed up/down, default is 1%
-            MouseXSensitivity = Constants.MOUSE_X_SENSITIVITY --export: (Default: 0.003) For virtual joystick only
-            MouseYSensitivity = Constants.MOUSE_Y_SENSITIVITY --export: (Default: 0.003) For virtual joystick only
+            MouseXSensitivity = 0.003 --export: (Default: 0.003) For virtual joystick only
+            MouseYSensitivity = 0.003 --export: (Default: 0.003) For virtual joystick only
             autoRollFactor = 2 --export: (Default: 2) [Only in atmosphere] When autoRoll is engaged, this factor will increase to strength of the roll back to 0
             rollSpeedFactor = 1.5 --export: (Default: 1.5) This factor will increase/decrease the player input along the roll axis (higher value may be unstable)
             autoRollRollThreshold = 180 --export: (Default: 180) The amount of roll below which autoRoll to 0 will occur (if autoRollPreference is true)
@@ -155,7 +149,7 @@ end
             brakeSpeedFactor = 3 --export: (Default: 3) When braking, this factor will increase the brake force by brakeSpeedFactor * velocity
             brakeFlatFactor = 1 --export: (Default: 1) When braking, this factor will increase the brake force by a flat brakeFlatFactor * velocity direction> (higher value may be unstable)
             DampingMultiplier = 40 --export: (Default: 40) How strongly autopilot dampens when nearing the correct orientation
-            hudTickRate = Constants.HUD_TICK_RATE --export: (Default: 0.0666667) Set the tick rate for your HUD.
+            hudTickRate = 0.0666667 --export: (Default: 0.0666667) Set the tick rate for your HUD.
             ExtraEscapeThrust = 1.0 --export: (Default: 1.0) Set this to 1 to use friction burn speed as your max speed when escaping atmosphere. Setting other than 1 will be a the value multiplied by your friction burn speed.
             ExtraLongitudeTags = "none" --export: (Default: "none") Enter any extra longitudinal tags you use inside '' separated by space, i.e. "forward faster major" These will be added to the engines that are control by longitude.
             ExtraLateralTags = "none" --export: (Default: "none") Enter any extra lateral tags you use inside '' separated by space, i.e. "left right" These will be added to the engines that are control by lateral.
@@ -202,28 +196,33 @@ VERSION_NUMBER = 2.201
 
 -- DU Events written for wrap and minimization. Written by Dimencia and Archaegeo. Optimization and Automation of scripting by ChronosWS  Linked sources where appropriate, most have been modified.
     function script.onStart()
-        -- Grok Suggestion: Expanded validation for key settings
+        PROGRAM.onStart()
+
+        -- Lightweight validation/clamping of user-exported settings. Runs AFTER
+        -- PROGRAM.onStart(), which is where saved values are loaded from the databank.
+        -- These globals are re-read each frame by the flight/HUD loops, so clamping
+        -- here takes effect on the next tick. Guards against out-of-range saved values
+        -- that would otherwise destabilize flight or rendering.
         if YawStallAngle < 0 or YawStallAngle > 90 then
-            system.print("Warning: YawStallAngle out of reasonable range (0-90). Resetting to default.")
-            YawStallAngle = Constants.YAW_STALL_ANGLE_DEFAULT
+            system.print("ArchHUD: YawStallAngle out of range (0-90), resetting to 35.")
+            YawStallAngle = 35
         end
         if PitchStallAngle < 0 or PitchStallAngle > 90 then
-            system.print("Warning: PitchStallAngle out of reasonable range (0-90). Resetting to default.")
-            PitchStallAngle = Constants.PITCH_STALL_ANGLE_DEFAULT
+            system.print("ArchHUD: PitchStallAngle out of range (0-90), resetting to 35.")
+            PitchStallAngle = 35
         end
-        if circleRad < 50 or circleRad > 500 then
-            system.print("Warning: circleRad out of recommended range (50-500). Clamping value.")
+        if circleRad ~= 0 and (circleRad < 50 or circleRad > 500) then
+            system.print("ArchHUD: circleRad out of recommended range (50-500), clamping.")
             circleRad = math.max(50, math.min(500, circleRad))
         end
         if hudTickRate < 0.01 or hudTickRate > 1 then
-            system.print("Warning: hudTickRate out of reasonable range. Resetting to default.")
-            hudTickRate = Constants.HUD_TICK_RATE
+            system.print("ArchHUD: hudTickRate out of range (0.01-1), resetting to 0.0666667.")
+            hudTickRate = 0.0666667
         end
         if AtmoSpeedLimit < 100 or AtmoSpeedLimit > 2000 then
-            AtmoSpeedLimit = Constants.ATMO_SPEED_LIMIT
+            system.print("ArchHUD: AtmoSpeedLimit out of range (100-2000), resetting to 1175.")
+            AtmoSpeedLimit = 1175
         end
-        
-        PROGRAM.onStart()
     end
 
     function script.onOnStop()
