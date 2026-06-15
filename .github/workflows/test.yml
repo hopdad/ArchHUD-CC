@@ -3,15 +3,48 @@ on:
   push:
     branches: ['*']
   pull_request:
-    branches: [master]
+    branches: [master, main]
 jobs:
-  lua-tests:
+  test:
+    name: Syntax, tests & build
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
 
       - name: Install Lua 5.3
-        run: sudo apt-get update && sudo apt-get install -y lua5.3
+        run: |
+          sudo apt-get update && sudo apt-get install -y lua5.3
+          sudo ln -sf /usr/bin/lua5.3 /usr/local/bin/lua
 
-      - name: Run math and utility tests
+      - name: Tree-wide syntax check
+        run: lua5.3 tests/test_syntax.lua
+
+      - name: Math tests
         run: lua5.3 tests/test_math.lua
+
+      - name: Utility tests
+        run: lua5.3 tests/test_util.lua
+
+      - name: Build check (wrap.sh, non-minified)
+        run: |
+          cd scripts && npm install --no-audit --no-fund
+          cd "$GITHUB_WORKSPACE" && ./scripts/wrap.sh false
+          test -f ArchHUD.conf && echo "Build produced ArchHUD.conf"
+
+  lint:
+    name: luacheck (informational)
+    runs-on: ubuntu-latest
+    # Non-blocking for now: the .luacheckrc global lists were assembled
+    # statically and need one real CI run to tune. Flip to blocking (remove this
+    # line) once the report is clean.
+    continue-on-error: true
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install luacheck
+        run: |
+          sudo apt-get update && sudo apt-get install -y lua5.3 luarocks
+          sudo luarocks install luacheck
+
+      - name: Run luacheck
+        run: luacheck src/ArchHUD.lua src/requires src/board
